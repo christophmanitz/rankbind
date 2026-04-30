@@ -13,12 +13,6 @@ v4_residue_only/analysis_results/
 *.npz
 *.h5
 
-# --- Separately-versioned subprojects -------------------------------------
-# reactionDataFiltering/ is its own GitHub repo
-# (https://github.com/christophmanitz/reactionDataFiltering); clone it
-# separately if you need the dataset pipeline.
-reactionDataFiltering/
-
 # --- Python --------------------------------------------------------------
 __pycache__/
 *.pyc

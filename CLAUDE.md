@@ -3,11 +3,15 @@
 ## Update 2026-04-30
 
 - **Workspace is now a git repo.** `~/rankbind/` itself is tracked
-  (`main` branch, 3 init commits). `.gitignore` excludes `data/`,
-  `results/`, `logs/`, `external/`, `v4_residue_only/checkpoints/`,
-  `*.tar.gz`, `*.pt`, and `reactionDataFiltering/` (which has its own
-  GitHub repo at https://github.com/christophmanitz/reactionDataFiltering).
-  Tracked footprint: ~170 files / ~10 MB. No remote yet.
+  (`main` branch). `.gitignore` excludes `data/`, `results/`, `logs/`,
+  `external/`, `v4_residue_only/checkpoints/`, `*.tar.gz`, `*.pt`.
+  `reactionDataFiltering/` is a **git submodule** pinned to a specific
+  commit of https://github.com/christophmanitz/reactionDataFiltering.
+  Clone with `git clone --recurse-submodules`, or
+  `git submodule update --init` after a plain clone.
+  See [`README.md`](README.md) for submodule workflow.
+  Tracked footprint (excluding submodule contents): ~170 files /
+  ~10 MB. No remote yet.
 - **BRENDA+SABIO training run in flight (tag `bs_v1`).** Three
   `*_no_decoys` configs submitted on `paula` (jobs 21484693 kcat_km,
   21484695 turnover, 21484823 km). km uses 12 h walltime because the

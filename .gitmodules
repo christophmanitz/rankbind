@@ -1,0 +1,3 @@
+[submodule "reactionDataFiltering"]
+	path = reactionDataFiltering
+	url = https://github.com/christophmanitz/reactionDataFiltering.git
