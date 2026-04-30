@@ -1,0 +1,15 @@
+{
+  "model": "rankbind",
+  "run_id": "20260423-112928_012a2695c2_default_v4",
+  "checkpoint_sha256": "43838882f856107c567b0e1434a4d7a6540c6cd71b4d3b1431a79f7d2614aeaa",
+  "n_test_pairs": 1404,
+  "n_positives": 464,
+  "per_ligand_auc": 0.75,
+  "n_ligands_counted": 4,
+  "global_auc": 0.6234134262655906,
+  "global_aupr": 0.4272314517415123,
+  "hit_at_1": 0.9848484848484849,
+  "hit_at_5": 1.0,
+  "hit_at_10": 1.0,
+  "n_ligands_evaluated": 66
+}

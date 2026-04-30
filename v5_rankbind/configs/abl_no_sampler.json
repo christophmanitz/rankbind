@@ -1,0 +1,6 @@
+{
+  "extends": "default.json",
+  "name": "abl_no_sampler",
+  "description": "Ablation: remove ProteinBalancedSampler; uniform random batches. Keep margin loss + bilinear head.",
+  "sampler": { "type": "random" }
+}

@@ -1,0 +1,12 @@
+{
+  "model": "moltrans",
+  "n_test_pairs": 1404,
+  "n_positives": 464,
+  "global_auc": 0.9369864269992664,
+  "global_aupr": 0.9056869617264623,
+  "per_ligand_auc": 0.5,
+  "hit_at_1": 0.9696969696969697,
+  "hit_at_5": 1.0,
+  "hit_at_10": 1.0,
+  "n_ligands_evaluated": 66
+}

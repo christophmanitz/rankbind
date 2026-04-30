@@ -1,0 +1,22 @@
+{
+  "extends": "default.json",
+  "name": "abl_attn_pool",
+  "description": "Stage-(b) of Phase-4 plan (PLAN.md §13.2). Replaces ESM2 mean-pool with a learned single-head attention-pool over per-residue embeddings. All other components (balanced sampler, margin loss, hard-neg mining, bilinear head rank=128) stay at v4 default. Tag runs v5_attnpool.",
+  "model": {
+    "head": "bilinear",
+    "d_lig": 256,
+    "d_prot": 256,
+    "bilinear_rank": 128,
+    "mlp_hidden": 128,
+    "lig_input_dim": 384,
+    "prot_input_dim": 1280,
+    "dropout": 0.0,
+    "protein_encoder": "attn_pool",
+    "max_residues": 1024,
+    "encoders": {
+      "protein": "esm2_residue_attn_pool_frozen",
+      "ligand":  "chemberta_mean_pool_frozen"
+    },
+    "capacity_note": "Adds a ResidueAttentionPool: 1 learned query [1280] + LayerNorm[1280] = ~3.8k params on top of v4 default (627k). Negligible parameter delta — this is a representational change, not a capacity change."
+  }
+}

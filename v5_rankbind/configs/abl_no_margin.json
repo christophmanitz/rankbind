@@ -1,0 +1,7 @@
+{
+  "extends": "default.json",
+  "name": "abl_no_margin",
+  "description": "Ablation: replace within-ligand margin loss with pointwise BCE. Keep balanced sampler + bilinear head.",
+  "loss": { "type": "bce", "bce_aux_weight": 1.0, "margin": 0.0 },
+  "triplet": { "n_negatives_per_positive": 0 }
+}

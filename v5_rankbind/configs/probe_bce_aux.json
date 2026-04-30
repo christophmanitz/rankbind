@@ -1,0 +1,10 @@
+{
+  "extends": "default.json",
+  "name": "probe_bce_aux",
+  "description": "gAUC trade-off probe: default recipe (bal+margin+biln+hard) with an added BCE auxiliary term at weight 0.5 on top of the margin loss. Goal: measure whether gAUC can be pulled toward the DTI-literature standard (≥ 0.80) without collapsing matrix-ranking metrics. Diagnostic run, NOT a paper ablation.",
+  "loss": {
+    "type": "margin",
+    "margin": 1.0,
+    "bce_aux_weight": 0.5
+  }
+}

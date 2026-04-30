@@ -1,0 +1,12 @@
+{
+  "model": "drugban",
+  "n_test_pairs": 1376,
+  "n_positives": 464,
+  "global_auc": 0.9543750945251059,
+  "global_aupr": 0.924872312202305,
+  "per_ligand_auc": 0.375,
+  "hit_at_1": 0.9545454545454546,
+  "hit_at_5": 1.0,
+  "hit_at_10": 1.0,
+  "n_ligands_evaluated": 66
+}

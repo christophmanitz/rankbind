@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>RankBind Phase 1 — Diagnostic Report & Plan Pivot</title>
+<style>
+:root {
+  --bg: #ffffff; --fg: #1a1a1a; --muted: #555; --accent: #b02a37;
+  --ok: #1d7a3a; --warn: #b45309; --box: #f5f5f3; --border: #dcdad5;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --serif: "Source Serif Pro", Georgia, serif;
+}
+body { font-family: var(--serif); color: var(--fg); background: var(--bg);
+       max-width: 860px; margin: 2em auto; padding: 0 1.5em; line-height: 1.55; }
+h1 { font-size: 1.8em; border-bottom: 2px solid var(--fg); padding-bottom: .3em; }
+h2 { font-size: 1.3em; margin-top: 2em; border-bottom: 1px solid var(--border); padding-bottom: .2em; }
+h3 { font-size: 1.1em; margin-top: 1.5em; color: var(--muted); }
+p { margin: .6em 0; }
+code, .mono { font-family: var(--mono); font-size: .92em; }
+.tldr { background: var(--box); border-left: 4px solid var(--accent);
+        padding: .8em 1.2em; margin: 1.5em 0; }
+.tldr h2 { border: none; margin-top: 0; }
+.note-ok   { border-left-color: var(--ok); }
+.note-warn { border-left-color: var(--warn); }
+table { border-collapse: collapse; margin: 1em 0; width: 100%; font-family: var(--mono); font-size: .9em; }
+th, td { border: 1px solid var(--border); padding: .4em .7em; text-align: left; }
+th { background: var(--box); }
+td.num { text-align: right; }
+figure { margin: 1.2em 0; }
+figcaption { color: var(--muted); font-size: .88em; font-style: italic; margin-top: .3em; }
+img { max-width: 100%; border: 1px solid var(--border); }
+.kbd { background: var(--box); padding: 1px 6px; border-radius: 3px;
+       border: 1px solid var(--border); font-family: var(--mono); }
+.strike { text-decoration: line-through; color: var(--muted); }
+.metric-bad  { color: var(--accent); font-weight: bold; }
+.metric-ok   { color: var(--ok);     font-weight: bold; }
+.arch-card { background: var(--box); border: 1px solid var(--border);
+             padding: .8em 1em; margin: .8em 0; border-radius: 4px; }
+.arch-card h4 { margin: 0 0 .3em 0; font-family: var(--mono); }
+ol li, ul li { margin: .3em 0; }
+hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+.glossary { background: #fafaf7; border: 1px solid var(--border);
+            padding: .6em 1em; margin: 1em 0; border-radius: 4px; }
+.glossary dt { font-family: var(--mono); font-weight: bold; color: var(--fg);
+               margin-top: .6em; font-size: .92em; }
+.glossary dd { margin: .15em 0 .3em 1.3em; font-size: .95em; color: #333; }
+.glossary dd .formula { font-family: var(--mono); background: var(--box);
+                        padding: 1px 5px; border-radius: 3px; font-size: .9em; }
+.howto { background: #fffbea; border-left: 3px solid var(--warn);
+         padding: .5em .9em; margin: .5em 0; font-size: .9em; }
+.howto strong { color: var(--warn); }
+details { background: var(--box); border: 1px solid var(--border);
+          padding: .4em .8em; border-radius: 4px; margin: .5em 0; }
+details summary { cursor: pointer; font-weight: bold; font-family: var(--mono);
+                  font-size: .9em; color: var(--accent); }
+details p, details ul { font-size: .92em; }
+</style>
+</head>
+<body>
+
+<h1>RankBind Phase 1 — Diagnostic Report &amp; Plan Pivot</h1>
+<p class="mono" style="color: var(--muted);">
+  2026-04-21 &nbsp;·&nbsp; HPC / Leipzig &nbsp;·&nbsp; <code>rankbind/evaluation/</code>
+</p>
+
+<div class="tldr">
+  <h2>TL;DR</h2>
+  <p>The original Phase 1 goal — <em>demonstrate universal attractor bias across
+  DTI models via Gini</em> — does <strong>not</strong> survive a proper null baseline.
+  A data-only model that ignores ligands produces <code>Gini ≈ 0.995</code>, the same
+  value as every trained model. Gini is a <em>dataset-geometry artifact</em>,
+  not evidence of a learned pathology.</p>
+  <p>But the null-baseline probe uncovered something stronger:
+  <strong>all four models achieve high global AUC while failing ligand-conditional
+  ranking (per-ligand AUC ≤ 0.625)</strong>. They learn protein-level shortcuts,
+  not ligand-protein interaction.</p>
+  <p><strong>The paper's deliverable changes</strong> from "diagnose the bias"
+  to "<strong>design a DTI architecture that is provably attractor-resistant</strong>."</p>
+</div>
+
+<details open>
+<summary>Glossary — read this first if terms below feel unfamiliar</summary>
+<div class="glossary">
+<dl>
+
+<dt>DTI — Drug-Target Interaction</dt>
+<dd>The task of predicting whether a small molecule (drug / ligand) binds to a
+given protein. In this project we use enzyme-substrate pairs from BRENDA, so
+"ligand" = substrate and "protein" = enzyme.</dd>
+
+<dt>Score matrix</dt>
+<dd>An <span class="formula">N_lig × N_prot</span> matrix where entry
+<span class="formula">(i, j)</span> is the model's predicted binding score for
+ligand <em>i</em> against protein <em>j</em>. High values should concentrate on
+true binding pairs. We use a 200×200 probe matrix for diagnosis.</dd>
+
+<dt>Attractor score (per protein)</dt>
+<dd>The fraction of ligands for which this protein is the model's <em>top-1</em>
+prediction. A protein with attractor score 0.5 "wins" half of all ligands,
+regardless of which ligand. A model with no attractors has a flat distribution
+(every protein = 1/N_prot).</dd>
+
+<dt>Gini coefficient</dt>
+<dd>Inequality measure of the attractor-score distribution, in [0, 1].
+<span class="formula">Gini = 0</span>: perfectly uniform (every protein gets
+the same share). <span class="formula">Gini = 1</span>: one protein wins every
+ligand. <strong>Why it's used here:</strong> it summarizes in one number how
+concentrated the predictions are on a few "attractor" proteins.</dd>
+
+<dt>Protein-based split</dt>
+<dd>Train/val/test partition by <em>protein</em>, not by pair. Guarantees no
+protein appears in both train and test — the correct discipline for measuring
+generalization to new proteins. Without this, a model can memorize per-protein
+labels and appear to generalize.</dd>
+
+<dt>Null baseline</dt>
+<dd>A synthetic "model" with no learned parameters. Used to check whether a
+metric is measuring the model or just the data geometry. Three are used here:
+<ul>
+  <li><code>null_random</code>: uniform noise scores.</li>
+  <li><code>null_prot_prior</code>: score depends only on the protein's
+  <em>training positive rate</em> (ligand ignored). This tests: "could a
+  model that knows nothing about ligands still reproduce this metric?"</li>
+  <li><code>null_lig_prior</code>: symmetric version for ligand.</li>
+</ul></dd>
+
+<dt>Global AUC</dt>
+<dd>Area Under the ROC Curve computed over <em>all</em> test pairs pooled
+together. Measures: "given a random positive and a random negative pair, how
+often does the model score the positive higher?" Ranges 0.5 (random) to 1.0.
+<strong>Shortcut risk:</strong> in a dataset where some proteins are almost
+always positive, a protein-only classifier scores very high here.</dd>
+
+<dt>Per-ligand AUC</dt>
+<dd>AUC computed <em>within each ligand</em> separately, then averaged across
+ligands. Measures: "for this specific ligand, does the model rank its true
+binding protein(s) above the non-binding proteins?" Unlike global AUC, this
+<em>cannot</em> be solved by a protein-only classifier — it directly tests
+whether the model uses ligand information. <strong>This is the metric that
+matters for DTI.</strong></dd>
+
+<dt>AUPR (Average Precision)</dt>
+<dd>Area under the precision-recall curve. More sensitive than AUC when
+positives are rare. Reported alongside AUC for completeness.</dd>
+
+<dt>Jaccard index (top-K)</dt>
+<dd>Set-overlap measure between each model's top-K attractor proteins:
+<span class="formula">|A ∩ B| / |A ∪ B|</span>. Jaccard 1.0 = identical top-K;
+0.0 = disjoint. We use K=10. Two models can have identical Gini yet
+Jaccard 0 — same statistics, different proteins.</dd>
+
+<dt>Prior inheritance</dt>
+<dd>When a trained model's top attractors match those of
+<code>null_prot_prior</code> (high Jaccard), the model has effectively learned
+the per-protein label distribution and nothing else. Diagnostic of shortcut
+learning.</dd>
+
+<dt>Shortcut learning</dt>
+<dd>The model relies on a spurious feature (here: per-protein label
+frequency) that correlates with the label on the training distribution but
+does not reflect the actual task (ligand-protein binding).</dd>
+
+<dt>Response map</dt>
+<dd>Heatmap visualization of the full score matrix. X-axis = protein, Y-axis
+= ligand, color = score. <strong>Vertical bands</strong> (bright columns)
+indicate attractor proteins — they win regardless of the ligand on the Y-axis.
+A well-behaved DTI model would show bright <em>spots</em> on the diagonal or
+scattered, not bands.</dd>
+
+</dl>
+</div>
+</details>
+
+<h2>1. What the plan was</h2>
+<p>Phase 1 was scoped as an empirical diagnosis: train four published DTI models
+(GraphDTA, MolTrans, DrugBAN, GEMS) on the BRENDA protein-based split, compute
+<code>200×200</code> score matrices, and show that all models exhibit extreme
+attractor concentration via <code>Gini ≫ 0.5</code>. The narrative:
+<em>"universal protein-attractor bias in DTI."</em></p>
+
+<p>Phases B–D were executed successfully. Models trained, matrices produced,
+Gini computed. Every model landed at <code>Gini ≈ 0.99</code>. The story
+looked clean.</p>
+
+<h2>2. What the data actually says</h2>
+
+<p>Three diagnostics were added after the primary pipeline finished:</p>
+
+<ul>
+  <li><strong>Null baselines</strong> (<code>evaluation/null_baselines.py</code>): three
+  synthetic score matrices over the same 200×200 geometry:
+  <em>random</em>, <em>per-protein positive rate</em>, <em>per-ligand positive rate</em>.</li>
+  <li><strong>Cross-model attractor overlap</strong> (<code>cross_model_overlap.py</code>):
+  top-10 Jaccard of attractor-protein identity between every model pair and the
+  prior baseline.</li>
+  <li><strong>Test-set evaluation</strong> (<code>test_set_eval.py</code>): global AUC/AUPR
+  and <em>per-ligand AUC</em> on the held-out protein test split.</li>
+</ul>
+
+<figure>
+  <img src="fig_summary.png" alt="Phase 1 summary dashboard">
+  <figcaption>Phase 1 summary. Top: response maps. Bottom left: attractor-identity
+  Jaccard. Bottom middle: the key paradox — models score well on global AUC but
+  fail ligand-conditional ranking. Bottom right: Gini is identical across all models
+  and the prior baseline.</figcaption>
+</figure>
+
+<div class="howto">
+  <strong>How to read this summary dashboard.</strong>
+  <ul style="margin: .4em 0;">
+    <li><em>Top row (response maps):</em> each panel is a 200×200 score matrix.
+    Bright <strong>vertical bands</strong> mean "one protein wins many ligands"
+    — the attractor signature. Notice how GraphDTA and MolTrans show the same
+    banding pattern as <code>null_prot_prior</code>, a model that literally
+    ignores the ligand axis.</li>
+    <li><em>Bottom-left (Jaccard):</em> row/column i∩j = how many top-10
+    attractor proteins model i and model j share. Diagonal is always 1.0
+    (a model shares everything with itself). Dark squares away from the diagonal
+    = <strong>different architectures converging on the same attractor proteins</strong>.
+    The MolTrans row/column is noticeably lighter — it collapses to different
+    proteins.</li>
+    <li><em>Bottom-middle (AUC scatter):</em> the ideal position is upper-right
+    (high on both axes). The red dashed line at Per-ligand AUC = 0.5 marks
+    <strong>random within-ligand ranking</strong>. All four models sit on or
+    below it despite global AUC up to 0.95. This is the central paradox.</li>
+    <li><em>Bottom-right (Gini bars):</em> the red dashed line marks
+    <code>null_prot_prior</code>'s Gini. Every trained model is essentially
+    at that line. A shortcut-free model would be left of the line.</li>
+  </ul>
+</div>
+
+<h3>2.1 Gini is data-forced</h3>
+
+<p>The <code>null_prot_prior</code> baseline (score depends only on a protein's training
+positive rate, ligand is ignored) produces:</p>
+<table>
+  <thead><tr><th>Baseline</th><th class="num">Gini</th><th class="num">Mean score var</th></tr></thead>
+  <tbody>
+    <tr><td>null_random</td><td class="num">0.509</td><td class="num">0.083</td></tr>
+    <tr><td class="metric-bad">null_prot_prior</td><td class="num metric-bad">0.995</td><td class="num">0.067</td></tr>
+    <tr><td>GraphDTA</td><td class="num">0.995</td><td class="num">99.10</td></tr>
+    <tr><td>DrugBAN</td><td class="num">0.995</td><td class="num">74.91</td></tr>
+    <tr><td>GEMS</td><td class="num">0.995</td><td class="num">43.37</td></tr>
+    <tr><td>MolTrans</td><td class="num">0.987</td><td class="num">38.54</td></tr>
+  </tbody>
+</table>
+<p>Consequence: the original framing collapses. Gini does not distinguish a
+data-blind baseline from a trained model. Any reviewer with a null baseline
+concern (any reviewer) closes the paper at this table.</p>
+
+<details>
+<summary>Why does null_prot_prior produce Gini = 0.995?</summary>
+<p><code>null_prot_prior</code> assigns each protein a single scalar — its
+training positive rate — and uses that scalar as the score for every ligand
+paired with that protein. So in the 200×200 matrix, each <em>column</em> is
+constant: all ligands get the same score for a given protein.</p>
+<p>When you now compute "for which ligands is protein <em>p</em> the top-1?",
+the answer is: <em>the protein with the highest positive rate wins every
+single ligand</em>, up to ties. One protein gets attractor score ≈ 1.0,
+everyone else ≈ 0.0. That's maximum concentration → Gini ≈ 1.0.</p>
+<p>This is why a model's matching Gini is not evidence of anything interesting:
+the dataset's per-protein label imbalance alone forces the metric to its
+ceiling. Detecting this required running the null baseline.</p>
+</details>
+
+<h3>2.2 Attractor identity &mdash; partial prior inheritance</h3>
+
+<figure>
+  <img src="fig_cross_overlap.png" alt="Cross-model top-10 Jaccard heatmap">
+  <figcaption>Top-10 attractor-identity Jaccard between models and null baselines.
+  GraphDTA, DrugBAN, GEMS cluster with <code>null_prot_prior</code>
+  (Jaccard 0.54–0.67). MolTrans has Jaccard 0.05 with the prior — it selects
+  <em>different</em> attractors, not fewer.</figcaption>
+</figure>
+
+<div class="howto">
+  <strong>How to read the Jaccard heatmap.</strong> Each cell is a number in
+  [0, 1]. <em>1.0</em> means "these two models / baselines pick the exact same
+  top-10 attractor proteins"; <em>0.0</em> means "completely disjoint sets."
+  The diagonal is trivially 1.0. To compare a model with the data prior,
+  <strong>read the column (or row) of <code>null_prot_prior</code></strong>:
+  values close to 1.0 indicate the model has effectively learned the data's
+  per-protein label distribution.
+  <ul style="margin: .4em 0;">
+    <li>GraphDTA ↔ GEMS: <strong>0.82</strong> — two very different
+    architectures (GCN on ligand vs GAT on complex with ESM2) pick nearly the
+    same attractor proteins. Strong shared-shortcut signal.</li>
+    <li>GraphDTA ↔ <code>null_prot_prior</code>: <strong>0.67</strong> — two
+    thirds of the top attractors would be predicted by a model that never sees
+    a ligand.</li>
+    <li>MolTrans vs everyone else: all 0.05–0.18. MolTrans is the outlier, but
+    with Gini = 0.987 it still collapses — just onto a different set of
+    proteins.</li>
+  </ul>
+</div>
+
+<p>Three models inherit the prior's top attractors. MolTrans deviates from the
+prior but still collapses onto its own attractor subset (its Gini is
+essentially identical).</p>
+
+<h3>2.3 The real problem &mdash; ranking AUC</h3>
+
+<details open>
+<summary>Why Global AUC and Per-ligand AUC can disagree</summary>
+<p>Imagine a dataset with 10 proteins, each appearing in 100 test pairs. Seven
+proteins bind most ligands (80% of their pairs are positive); three proteins
+bind almost nothing (5% positive). Now consider a model that ignores ligands
+and scores each pair based only on the protein (high score for the seven
+frequent binders, low for the three rare ones).</p>
+<ul>
+  <li><strong>Global AUC</strong> of this model ≈ 0.87 — it correctly separates
+  positive-heavy proteins from negative-heavy proteins. Looks good.</li>
+  <li><strong>Per-ligand AUC</strong> of this model = 0.5 — within any given
+  ligand, it assigns the <em>same</em> score to all seven frequent-binder
+  proteins (it can't tell them apart using the ligand). Random ranking.</li>
+</ul>
+<p>Per-ligand AUC therefore isolates the information the model uses that
+actually depends on the ligand identity. A model scoring below 0.5 on this
+metric is using ligand information in an actively misleading way.</p>
+</details>
+
+<table>
+  <thead><tr>
+    <th>Model</th>
+    <th class="num">Global AUC</th><th class="num">Global AUPR</th>
+    <th class="num">Per-ligand AUC</th><th class="num">Jaccard w/ prior</th>
+  </tr></thead>
+  <tbody>
+    <tr><td>DrugBAN</td><td class="num metric-ok">0.954</td><td class="num">0.925</td><td class="num metric-bad">0.375</td><td class="num">0.54</td></tr>
+    <tr><td>MolTrans</td><td class="num metric-ok">0.937</td><td class="num">0.906</td><td class="num metric-bad">0.500</td><td class="num">0.05</td></tr>
+    <tr><td>GraphDTA</td><td class="num">0.869</td><td class="num">0.783</td><td class="num metric-bad">0.625</td><td class="num">0.67</td></tr>
+    <tr><td>GEMS</td><td class="num metric-bad">0.633</td><td class="num">0.457</td><td class="num metric-bad">0.250</td><td class="num">0.67</td></tr>
+  </tbody>
+</table>
+
+<p>Global AUC ≥ 0.87 for three of four models looks like DTI is solved. But
+<strong>per-ligand AUC never exceeds 0.625, and for DrugBAN/GEMS it is below
+random</strong>. Per-ligand AUC is the meaningful metric: <em>given this ligand,
+rank the candidate proteins</em>. None of the four models can do this.</p>
+
+<p>The models learn a <strong>protein-level shortcut</strong>. Global AUC is inflated
+because most pairs with a "frequent-binder" protein are positives. Flip to the
+ligand-conditional view and the signal disappears.</p>
+
+<div class="howto">
+  <strong>How to read the per-ligand AUC column.</strong>
+  <ul style="margin: .4em 0;">
+    <li><code>0.5</code> = the model cannot rank candidate proteins for a
+    given ligand better than coin flips. Equivalent to: "the model's ranking
+    within a ligand contains no information about which protein actually binds
+    that ligand."</li>
+    <li><code>&lt; 0.5</code> (DrugBAN 0.375, GEMS 0.25) = the model is
+    <em>systematically anti-correlated</em> with the truth on the within-ligand
+    axis. It assigns higher scores to non-binders than binders for that ligand.
+    (It still has high global AUC because cross-ligand differences dominate.)</li>
+    <li><code>0.625</code> (GraphDTA) = weakly above random. This is as good
+    as it gets in our Phase-1 set of baselines.</li>
+    <li><strong>Takeaway:</strong> none of these models can answer the
+    operational DTI question <em>"given a new ligand, which enzyme is most
+    likely to bind it?"</em> — which is what matters for drug discovery,
+    enzyme engineering, or substrate prediction.</li>
+  </ul>
+</div>
+
+<h2>3. Why the original plan does not work</h2>
+
+<ol>
+  <li><strong>Null-baseline refutation.</strong> The headline metric (Gini) is
+  reproduced by a data-blind baseline. The "universal attractor bias" claim is
+  empirically correct but mechanistically <em>trivial</em>: the dataset geometry
+  alone forces it.</li>
+  <li><strong>Missing metric.</strong> Global AUC was never a sufficient success
+  criterion for DTI. Three "good" models have per-ligand AUC ≤ 0.5. Any model
+  we "validate" with global AUC is a model that has learned the prior.</li>
+  <li><strong>The interesting finding is absent from the plan.</strong> The actual
+  scientific content is: DTI models converge on protein-level shortcuts under
+  protein-based splits. None of the scheduled Phase-1 deliverables surfaces this
+  directly.</li>
+  <li><strong>GIGN strategy is no longer load-bearing.</strong> Adding a fifth model
+  does not change the diagnosis. SKiD/DiffDock compute time (weeks of GPU) has
+  no payoff under the new framing.</li>
+</ol>
+
+<h2>4. Concrete changes to the project plan</h2>
+
+<h3>Retain</h3>
+<ul>
+  <li>The four trained models, their checkpoints, score matrices.</li>
+  <li><code>attractor_diagnosis.py</code>, <code>null_baselines.py</code>,
+  <code>cross_model_overlap.py</code>, <code>test_set_eval.py</code> — these stay as the
+  empirical skeleton.</li>
+  <li>The unified protein-based split in <code>common.py</code>.</li>
+</ul>
+
+<h3>Drop</h3>
+<ul>
+  <li class="strike">GIGN adapter + SKiD download + DiffDock docking pipeline</li>
+  <li class="strike">Phase C (complex 3D models) as originally scoped</li>
+  <li class="strike">Regression-vs-Binary ablation (not informative under the new framing)</li>
+</ul>
+
+<h3>Add</h3>
+<ul>
+  <li><strong>Per-ligand AUC</strong> as primary reporting metric. Global AUC demoted
+  to context.</li>
+  <li><strong>Prior-adjusted metrics</strong>: <code>gini_residual = gini(model) − gini(prior)</code>;
+  attractor-Jaccard vs prior.</li>
+  <li>A <strong>new Phase 2</strong> focused on architecture design (see §5).</li>
+</ul>
+
+<h2>5. New paper direction &mdash; a specific architecture that solves this</h2>
+
+<p>The target contribution shifts from <em>"benchmarks are broken"</em> (negative result,
+common genre) to <em>"here is a DTI architecture that passes ligand-conditional
+ranking where standard models fail"</em> (positive result, method contribution).</p>
+
+<div class="tldr note-ok">
+  <p><strong>Working title.</strong>
+  <em>RankBind: Protein-Invariant Contrastive Learning for Ligand-Conditional DTI.</em></p>
+  <p><strong>Claim.</strong>  A DTI model trained with (a) protein-balanced sampling, (b)
+  within-ligand contrastive loss, and (c) a bilinear-only interaction head achieves
+  per-ligand AUC ≥ X on BRENDA while matching the best baseline's global AUC,
+  unlike all four evaluated baselines which score ≤ 0.625.</p>
+</div>
+
+<h3>5.1 Architectural components</h3>
+
+<div class="arch-card">
+  <h4>(a) Protein-balanced sampling</h4>
+  Each training epoch samples a near-equal number of positives and negatives
+  <em>per protein</em>. Eliminates the protein-level label prior that the four
+  baselines exploit. Directly removes the shortcut signal that produces
+  <code>null_prot_prior</code>'s Gini ≈ 0.995.
+  <p style="margin-top:.5em; font-size:.88em; color:var(--muted);">
+  <strong>Intuition.</strong> If protein P appears 95× as a binder and 5× as a
+  non-binder, the gradient updates predominantly say "high score for P."
+  The model learns "P is a binder," not "P binds <em>these</em> ligands."
+  Balanced sampling flips this: for every positive (L<sup>+</sup>, P) there
+  is a comparable negative (L<sup>&minus;</sup>, P), forcing the model to
+  distinguish them — which it can only do by reading the ligand.
+  </p>
+</div>
+
+<div class="arch-card">
+  <h4>(b) Within-ligand contrastive loss</h4>
+  For every training ligand L with a positive protein P<sup>+</sup>, sample k
+  protein negatives {P<sup>&minus;</sup><sub>i</sub>} and optimize a margin ranking loss:
+  <code>max(0, m − s(L, P<sup>+</sup>) + s(L, P<sup>&minus;</sup><sub>i</sub>))</code>.
+  The model is forced to assign <em>higher</em> score to the true protein
+  <em>for that specific ligand</em> — which is exactly the per-ligand AUC criterion.
+  <p style="margin-top:.5em; font-size:.88em; color:var(--muted);">
+  <strong>Intuition.</strong> Standard BCE loss optimizes
+  <em>absolute</em> score (positive pairs → 1, negatives → 0). The model can
+  minimize BCE by matching per-protein averages — no pairwise comparison
+  needed. The margin loss is explicitly <em>relative</em>: the score of the
+  true protein must beat the score of a <em>specific other</em> protein
+  <em>for the same ligand</em>. The training objective becomes shape-matched
+  to per-ligand AUC.
+  </p>
+</div>
+
+<div class="arch-card">
+  <h4>(c) Bilinear-only interaction head</h4>
+  The final score is <code>s(L, P) = f(L)<sup>⊤</sup> · M · g(P) + b</code>,
+  with no standalone MLP path that sees only L or only P. Eliminates the
+  "protein-only" architectural shortcut (which DrugBAN/GEMS currently have via
+  their BAN / GAT heads that project to a scalar with protein-prior leakage).
+  <p style="margin-top:.5em; font-size:.88em; color:var(--muted);">
+  <strong>Intuition.</strong> Many DTI architectures concatenate a ligand
+  embedding and a protein embedding into one vector, then pass through an
+  MLP. An MLP with enough capacity will learn
+  <em>any</em> function of just the protein part (weights zero on the ligand
+  components → protein-only score). Forcing a bilinear form
+  <code>L<sup>⊤</sup> M P</code> means a non-trivial score <em>requires</em>
+  contributions from both sides: if either <code>f(L)</code> or
+  <code>g(P)</code> is constant across inputs, the model cannot score. This
+  is an architectural prior against the shortcut.
+  </p>
+</div>
+
+<h3>5.2 Evaluation protocol</h3>
+<ul>
+  <li>Same <code>common.BRENDADataConfig</code> protein-based split as Phase 1 (zero
+  leakage to baselines).</li>
+  <li>Primary metric: <strong>per-ligand AUC</strong> (macro-mean across test ligands
+  with ≥1 positive and ≥1 negative).</li>
+  <li>Secondary metrics: global AUC (for compatibility), Hit@K on a larger
+  candidate set, attractor-Jaccard vs <code>null_prot_prior</code> (must approach
+  zero for a non-shortcut model).</li>
+  <li>All four baselines are re-reported on per-ligand AUC (this report already
+  has the numbers). RankBind must beat <code>0.625</code> by a meaningful margin
+  to claim success.</li>
+</ul>
+
+<h3>5.3 Risk / falsifiability</h3>
+<p>If protein-balanced sampling + contrastive loss fails to lift per-ligand AUC
+above 0.65, the contribution is not a new architecture but a confirmed
+negative result — and the paper pivots back to "DTI benchmarks cannot separate
+shortcut from signal." That fallback is still publishable (as a measurement
+paper), but the primary target is the positive contribution.</p>
+
+<h2>6. Concrete next steps</h2>
+<ol>
+  <li><strong>Week 1.</strong> Implement the three components as a minimal model
+  (<code>v5_rankbind/model.py</code>): protein-balanced sampler, margin loss, bilinear
+  head. Use ESM2 + ChemBERTa encoders (already available from GEMS pipeline) so
+  the contribution is the training/architecture shape, not the encoders.</li>
+  <li><strong>Week 2.</strong> Train + evaluate on the same split. Report the same
+  five metrics side-by-side with the four baselines.</li>
+  <li><strong>Week 3.</strong> Ablations: remove each of (a)/(b)/(c) to show they
+  are individually necessary.</li>
+  <li><strong>Week 4.</strong> Cross-dataset probe: train on BRENDA, evaluate on a
+  second enzyme-substrate corpus (kcat or similar) to test generalization
+  under the same protein-based leakage discipline.</li>
+</ol>
+
+<hr>
+<p class="mono" style="color: var(--muted); font-size: .85em;">
+Generated by <code>evaluation/phase_d_figures.py</code> &amp; <code>phase1_report.html</code> (static).
+Source data: <code>results/original_{graphdta,moltrans,drugban,gems}/</code>,
+<code>evaluation/attractor_results/</code>.
+</p>
+
+</body>
+</html>

@@ -1,0 +1,9 @@
+,n_total,n_bottom_q,bottom_share
+long_aliphatic,1,1,1.0
+OTHER,6,4,0.6666666666666666
+polyhydroxy,8,4,0.5
+phosphate,4,1,0.25
+carboxylate,4,1,0.25
+phenol_or_aromOH,8,1,0.125
+halogenated,7,0,0.0
+amide_or_peptide,2,0,0.0

@@ -1,0 +1,23 @@
+{
+  "extends": "../default.json",
+  "name": "turnover_with_decoys",
+  "description": "BRENDA+SABIO turnover_number (kcat) dataset, decoy-augmented (~30 Pareto-frontier decoys per substrate, TS in 0.3..0.8).",
+
+  "data": {
+    "csv_path": "reactionDataFiltering/data/interim/turnover_brenda_sabio/with_decoys.csv",
+    "seq_csv":  "reactionDataFiltering/data/interim/turnover_brenda_sabio/sequences.csv",
+    "esm2_dir": "reactionDataFiltering/data/interim/turnover_brenda_sabio/esm2_embeddings",
+    "val_frac": 0.15,
+    "test_frac": 0.15
+  },
+
+  "dataset_meta": {
+    "source_dataset_dir": "reactionDataFiltering/data/raw/brenda_sabio_2026-04-29/turnover_brenda_sabio/",
+    "parameter": "turnover_number",
+    "decoys": true,
+    "decoy_ts_min": 0.3,
+    "decoy_ts_max": 0.8,
+    "label_source": "is_decoy column (False -> label 1, True -> label 0)",
+    "valid_metrics": ["matrix_mrr", "hit@5", "hit@10", "global_auc", "per_ligand_auc", "gini_residual", "jac_at_10_vs_null"]
+  }
+}

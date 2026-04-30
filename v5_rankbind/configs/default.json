@@ -1,0 +1,69 @@
+{
+  "name": "default",
+  "description": "RankBind full model: balanced sampler + within-ligand margin loss + bilinear-only head.",
+
+  "seed": 42,
+
+  "data": {
+    "csv_path": "data/dataset_with_decoys.csv",
+    "seq_csv":  "data/sequences/sequences.csv",
+    "esm2_dir": "data/esm2_embeddings",
+    "val_frac": 0.15,
+    "test_frac": 0.15
+  },
+
+  "sampler": {
+    "type": "protein_balanced",
+    "pairs_per_protein_per_epoch": 16,
+    "pos_neg_ratio": 1.0
+  },
+
+  "triplet": {
+    "n_negatives_per_positive": 4,
+    "negative_sampling": "hard",
+    "hard_pool_size": 50,
+    "negative_sampling_note": "v4: hard-negative mining. Before each epoch, re-score all (positive-ligand × train-protein) pairs with the current model. For anchor (L+, P+), take top-hard_pool_size proteins by score excluding known positives + anchor, then sample k uniformly from that pool. Falls back to random cross_protein_implicit at epoch 0 (scores not yet cached)."
+  },
+
+  "model": {
+    "head": "bilinear",
+    "d_lig": 256,
+    "d_prot": 256,
+    "bilinear_rank": 128,
+    "mlp_hidden": 128,
+    "lig_input_dim": 384,
+    "prot_input_dim": 1280,
+    "dropout": 0.0,
+    "encoders": {
+      "protein": "esm2_mean_pool_frozen",
+      "ligand":  "chemberta_mean_pool_frozen"
+    },
+    "capacity_note": "bilinear_rank=128 matches MLP-concat head parameter count (65,793) for fair head comparison; see v5_rankbind/PLAN.md §head-capacity."
+  },
+
+  "loss": {
+    "type": "margin",
+    "margin": 1.0,
+    "bce_aux_weight": 0.0
+  },
+
+  "train": {
+    "epochs": 50,
+    "batch_size_ligands": 32,
+    "optimizer": "adamw",
+    "lr": 3e-4,
+    "min_lr": 3e-5,
+    "weight_decay": 1e-4,
+    "grad_clip": 1.0,
+    "scheduler": "cosine",
+    "precision": "bf16",
+    "early_stop_patience": 10,
+    "early_stop_min_epochs": 20,
+    "early_stop_metric": "val_global_auc"
+  },
+
+  "eval": {
+    "n_matrix": 200,
+    "build_score_matrix": true
+  }
+}

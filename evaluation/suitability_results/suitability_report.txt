@@ -1,0 +1,47 @@
+BRENDA Hydrolase Dataset Suitability Report
+============================================================
+Total rows:       9,632
+Unique proteins:  903
+Unique ligands:   4,604
+EC classes:       387
+Binders:          3,175
+Decoys:           6,457
+
+CHECK 1: Protein Representation Imbalance
+  Proteins with ≥1 binder: 903
+  Ligands per protein: mean=3.5, median=2, max=57
+  Gini coefficient: 0.5068
+  -> HIGH skew — good prerequisite for attractor bias
+
+CHECK 2: EC Sub-class Overlap
+  Unique EC sub-classes: 39
+  Sub-classes with >1 protein: 33
+  Proteins in multi-protein sub-classes: 897 / 903
+  -> High functional similarity within sub-classes amplifies attractor risk
+
+CHECK 3: Ligand Chemical Diversity
+  Unique SMILES: 1447, valid: 1447
+  Tanimoto (pairwise, n=500 sample):
+    mean=0.1147, median=0.0924
+    >0.7 similar: 0.35%
+    >0.9 near-dup: 0.07%
+
+CHECK 4: Minimum Viable Dataset Properties
+  Proteins with ≥3 binder ligands: 356
+  -> PASS (≥20 required)
+
+CHECK 5: Protein Diversity Proxy (EC major class distribution)
+  EC 3.*: 900 proteins
+  EC 2.*: 2 proteins
+  EC 1.*: 1 proteins
+  Note: Full sequence identity analysis requires MMseqs2 (HPC step)
+
+SUMMARY
+============================================================
+  1. Protein imbalance (Gini=0.507): STRONG SKEW — ideal for attractor analysis
+  2. EC sub-class overlap: 33 sub-classes with multiple proteins — high functional similarity risk
+  3. Ligand diversity: mean Tanimoto=0.115 — chemically diverse
+  4. Viable proteins (≥3 ligands): 356 — PASS
+  5. Dataset covers EC ['3', '2', '1'] — all hydrolase sub-classes
+
+SUITABLE for attractor bias analysis. High protein imbalance (Gini=0.507) and EC sub-class overlap provide the prerequisites for attractor formation. Proceed with Phase 1 baselines.

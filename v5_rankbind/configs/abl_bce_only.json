@@ -1,0 +1,9 @@
+{
+  "extends": "default.json",
+  "name": "abl_bce_only",
+  "description": "Control: Phase-1-style baseline recipe. Random sampler + BCE + MLP-concat head.",
+  "sampler": { "type": "random" },
+  "loss": { "type": "bce", "bce_aux_weight": 1.0, "margin": 0.0 },
+  "triplet": { "n_negatives_per_positive": 0 },
+  "model": { "head": "mlp_concat" }
+}

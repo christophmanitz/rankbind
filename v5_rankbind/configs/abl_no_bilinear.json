@@ -1,0 +1,6 @@
+{
+  "extends": "default.json",
+  "name": "abl_no_bilinear",
+  "description": "Ablation: replace bilinear-only head with MLP over concatenated features. Keep balanced sampler + margin loss.",
+  "model": { "head": "mlp_concat" }
+}

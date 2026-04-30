@@ -1,0 +1,22 @@
+{
+  "extends": "../default.json",
+  "name": "km_no_decoys",
+  "description": "BRENDA+SABIO Km dataset, positives only (no decoy augmentation). Margin loss + cross-protein-implicit sampler. Global AUC is undefined (no row-level negatives); use matrix MRR / Hit@K as the primary metrics.",
+
+  "data": {
+    "csv_path": "reactionDataFiltering/data/raw/brenda_sabio_2026-04-29/km_brenda_sabio/with_structures.csv",
+    "seq_csv":  "reactionDataFiltering/data/interim/km_brenda_sabio/sequences.csv",
+    "esm2_dir": "reactionDataFiltering/data/interim/km_brenda_sabio/esm2_embeddings",
+    "val_frac": 0.15,
+    "test_frac": 0.15
+  },
+
+  "dataset_meta": {
+    "source_dataset_dir": "reactionDataFiltering/data/raw/brenda_sabio_2026-04-29/km_brenda_sabio/",
+    "parameter": "km_value",
+    "decoys": false,
+    "label_source": "value column (value > 0 -> label 1, no row-level negatives present)",
+    "valid_metrics": ["matrix_mrr", "hit@5", "hit@10", "gini_residual", "jac_at_10_vs_null"],
+    "invalid_metrics_note": "global_auc / per_ligand_auc require row-level negatives; report as N/A for this variant."
+  }
+}
