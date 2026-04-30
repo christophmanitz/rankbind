@@ -1,5 +1,31 @@
 # RankBind — session handoff (Phase 2 in progress)
 
+## Update 2026-04-30
+
+- **Workspace is now a git repo.** `~/rankbind/` itself is tracked
+  (`main` branch, 3 init commits). `.gitignore` excludes `data/`,
+  `results/`, `logs/`, `external/`, `v4_residue_only/checkpoints/`,
+  `*.tar.gz`, `*.pt`, and `reactionDataFiltering/` (which has its own
+  GitHub repo at https://github.com/christophmanitz/reactionDataFiltering).
+  Tracked footprint: ~170 files / ~10 MB. No remote yet.
+- **BRENDA+SABIO training run in flight (tag `bs_v1`).** Three
+  `*_no_decoys` configs submitted on `paula` (jobs 21484693 kcat_km,
+  21484695 turnover, 21484823 km). km uses 12 h walltime because the
+  dataset is ~9.5 k proteins / ~19 min/epoch. Decoys job
+  (21480544_0/1/2 on `paul`) still running for the `*_with_decoys`
+  variants — those train next.
+- **ESM2 embeddings deduplicated.** All three datasets shared ~3.4 k
+  uniprots; per-dataset `.pt` copies were 18 987 files / 39 GB.
+  Migrated to a single shared store at
+  `reactionDataFiltering/data/interim/esm2_embeddings_shared/` (9 912
+  unique files / 21 GB) with relative symlinks in each dataset
+  folder. Loader (`v5_rankbind/data.py`) follows symlinks
+  transparently — no code change. Migration script:
+  `reactionDataFiltering/scripts/dedup_embeddings.py`, idempotent.
+- **`scripts/run_v5_rankbind.sh` accepts a 5th arg `WALLTIME`**
+  (default `06:00:00`). Use it for big datasets:
+  `bash scripts/run_v5_rankbind.sh datasets/km_no_decoys paula bs_v1_km "" 12:00:00`.
+
 ## Status at a glance (2026-04-23)
 
 - **Phase 1**: done. Four baselines trained + evaluated; null-baseline pivot
