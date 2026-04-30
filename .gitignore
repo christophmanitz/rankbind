@@ -1,0 +1,60 @@
+# --- Data, models, artefacts (huge, regeneratable, not source) -----------
+data/
+results/
+logs/
+external/
+v4_residue_only/checkpoints/
+v4_residue_only/checkpoints_v2/
+v4_residue_only/analysis_results/
+*.tar.gz
+*.pt
+*.pkl
+*.npy
+*.npz
+*.h5
+
+# --- Separately-versioned subprojects -------------------------------------
+# reactionDataFiltering/ is its own GitHub repo
+# (https://github.com/christophmanitz/reactionDataFiltering); clone it
+# separately if you need the dataset pipeline.
+reactionDataFiltering/
+
+# --- Python --------------------------------------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+build/
+dist/
+
+# --- Notebooks -----------------------------------------------------------
+.ipynb_checkpoints/
+
+# --- Editor / OS ---------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*~
+
+# --- Claude Code session state -------------------------------------------
+.claude/
+
+# --- Paper build artefacts ------------------------------------------------
+paper/*.pdf
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.toc
+paper/*.synctex.gz
+paper/_build/
+
+# --- Scratch / temp -------------------------------------------------------
+tmp/
+tmp_data/
+scratch/
