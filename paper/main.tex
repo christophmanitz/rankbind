@@ -648,6 +648,136 @@ in \gauc, $0.06 \to 0.33$ in \matmrr. The right benchmark for an
 enzyme--substrate model is the latter --- pooled AUC certifies a
 property that does not generalise across ligand identity.
 
+\subsection{Does the recipe survive larger, enzyme-wide data?}
+\label{sec:transfer}
+
+The headline numbers in \S\ref{sec:results} are on BRENDA-200, a
+hydrolase-restricted sub-corpus with $200$ unique proteins and $200$
+unique ligands. To probe whether \method's anti-shortcut behaviour
+persists outside that regime we re-ran the v4 default on three
+BRENDA+SABIO with-decoys datasets at $50\times$ the scale (\texttt{kcat\_km}
+$43$k pairs / $3.8$k proteins / $13.1$k SMILES; \texttt{km} $57$k / $9.5$k /
+$14.6$k; \texttt{turnover} $42$k / $5.7$k / $13.5$k) and re-applied the
+\nullprior\ probe.
+
+\begin{table}[h]
+  \centering
+  \small
+  \begin{tabular}{lrrr}
+    \toprule
+    Dataset (v4 default) & \matmrr & $\rho_{\text{row}}$ vs.\ \nullprior & Top-10 Jaccard vs.\ \nullprior \\
+    \midrule
+    BRENDA-200 (Phase-1 baselines)              & $0.001$--$0.06$        & n.a.                & $\mathbf{0.54\text{--}0.67}$ \\
+    BRENDA-200 (\method v4)                     & $\mathbf{0.326 \pm 0.072}$ & n.a.            & $0.035 \pm 0.030$ \\
+    BRENDA+SABIO \texttt{kcat\_km} (\method v4) & $0.134$                & $\mathbf{-0.008 \pm 0.062}$ & $\mathbf{0.017}$ \\
+    BRENDA+SABIO \texttt{km} (\method v4)       & $0.023$                & $\mathbf{-0.134 \pm 0.026}$ & $\mathbf{0.008}$ \\
+    BRENDA+SABIO \texttt{turnover} (\method v4) & $0.040$                & $\mathbf{-0.025 \pm 0.090}$ & $\mathbf{0.011}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Two observations. (i) \emph{The shortcut does not return.} The mean
+per-row Spearman between the v4 score matrix and \nullprior\ is at or
+below zero on all three enzyme-wide datasets, and the top-10 Jaccard is
+one to two orders of magnitude smaller than for the unmitigated Phase-1
+baselines on BRENDA-200. The anti-shortcut property of the recipe
+transfers cleanly. (ii) \emph{Absolute ranking quality drops.} Matrix
+MRR falls $2$--$14\times$ from the BRENDA-200 default. Diagnostically
+this is \emph{not} the Phase-1 pathology re-emerging (the model is not
+just learning the per-protein training base rate); it is
+signal-to-noise loss on a much harder ranking pool --- $\sim$$5$k
+candidate proteins instead of $200$, and decoys drawn from a $14$k-SMILES
+universe instead of $200$. The pre-registered $\texttt{hard\_pool\_size}=50$
+is about $25\%$ of the BRENDA-200 train set but $0.5$--$1.3\%$ of the
+BRENDA+SABIO train set, so hard-negative mining devolves toward random
+sampling at this scale. Hyperparameter scaling (rather than a new
+method) is the indicated intervention. We treat this as a
+transferability finding for the diagnosis, not a competitive
+enzyme-wide result, and defer enzyme-wide hyperparameter re-tuning to
+future work.
+
+\subsection{Practitioner recipe --- what to do for a new model or dataset}
+\label{sec:recipe}
+
+The evidence above and in \S\ref{sec:results} supports a small, ordered
+recipe for any enzyme--substrate or general DTI work:
+
+\begin{enumerate}[leftmargin=*,itemsep=2pt,topsep=2pt]
+  \item \textbf{Run the \nullprior\ probe before reporting any pooled
+        metric.} Score each $(L, P)$ pair on the test set using only
+        the per-protein training positive rate. If the resulting
+        matrix matches your model in global AUC and the top-$K$
+        attractor proteins overlap heavily (Top-10 Jaccard $\ge 0.30$),
+        pooled AUC has been certified by a property that does not
+        depend on the ligand. Switch the primary metric to
+        ligand-conditional \matmrr\ or Hit@$K$. The probe is a single
+        matrix multiply and costs nothing to maintain.
+  \item \textbf{Use a within-ligand margin loss as the ranking
+        objective.} This is the largest single lever in our ablation:
+        removing it collapses MRR by $\sim$$8\times$
+        ($0.326 \to 0.041$) and the pooled AUC of the no-margin model
+        rebounds to $0.95$ --- the shortcut returns. We recommend this
+        loss in preference to BCE on imbalanced batches, and
+        explicitly \emph{not} as an additive auxiliary: a BCE
+        auxiliary at weight $0.5$ lifted \gauc\ by only $+0.03$ without
+        recovering ranking quality (\S\ref{sec:gauc}).
+  \item \textbf{Pair the loss with a protein-balanced sampler.} For
+        each protein in the training set, draw an approximately equal
+        number of positive and negative pairs per epoch. Removing this
+        sampler costs $-44\%$ MRR on top of the margin loss alone,
+        because heavily positive proteins re-imprint the per-protein
+        prior whenever they dominate a batch.
+  \item \textbf{Add online hard-negative mining, but scale
+        \texttt{hard\_pool\_size} with the number of train proteins.}
+        On BRENDA-200 a fixed pool of $50$ hardest non-positive
+        proteins per anchor lifts MRR from $0.20$ to $0.33$ ($+62\%$).
+        On BRENDA+SABIO with $3.8$--$9.5$k train proteins the same
+        fixed value covers $<\!1.3\%$ of the pool and degrades to
+        near-random sampling. We recommend setting
+        \texttt{hard\_pool\_size} to $\sim$$10$--$25\%$ of
+        $n_{\text{train\_proteins}}$ and monitoring
+        \texttt{pos\_above\_neg\_max} to confirm the pool is producing
+        informative negatives (it should rise into $0.95{+}$ over
+        training).
+  \item \textbf{Prefer a low-rank bilinear interaction head over an
+        MLP-concat head.} At matched capacity ($\approx\!66$k head
+        parameters) the means are similar but bilinear cuts
+        seed-to-seed standard deviation by $2.2\times$ on MRR
+        ($0.072$ vs.\ $0.161$), and similarly on Hit@10 and
+        Gini-residual. The stability matters more than the marginal
+        mean for paper-grade results.
+  \item \textbf{For per-residue protein representations, normalise per
+        residue before pooling.} Replacing the v4 mean-pool over
+        per-residue ESM2 with a learned-query attention pool
+        ($+3{,}840$ parameters, $+0.6\%$) lifted MRR $0.326 \to 0.427$.
+        The attention-weight audit (\S\ref{sec:attn}) shows the
+        active mechanism is per-residue LayerNorm rather than sharp
+        pocket selection; a structurally-equivalent baseline that
+        simply applies LayerNorm pre-pool is therefore a cheap,
+        parameter-free first stop.
+  \item \textbf{Do not gate model selection on pooled AUC.} Retain it
+        for comparability with prior work, but on enzyme--substrate
+        corpora with a skewed per-protein label distribution it
+        certifies a property the ranking task should explicitly trade
+        away (\S\ref{sec:gauc}). Three-seed \matmrr\ with
+        seed-aware standard deviations is the metric to gate on.
+  \item \textbf{Re-run the null probe on every new dataset.} A drop in
+        MRR may have two distinct causes --- shortcut return or
+        signal-to-noise loss at scale --- and the probe distinguishes
+        them. On BRENDA+SABIO our probe rules out the first
+        ($\rho \approx 0$ with \nullprior), pointing at hyperparameter
+        scaling rather than an architectural problem. The opposite
+        finding would have indicated the recipe needs strengthening,
+        not just retuning.
+\end{enumerate}
+
+The recipe is intentionally short. The Phase-1 diagnosis identified a
+single failure mode --- protein-level prior fitting --- and
+\S\ref{sec:results} isolated four remedies that \emph{jointly} break it.
+None of the four ingredients alone is sufficient (margin alone reaches
+MRR $0.183$ without the sampler; hard-negative mining contributes
+nothing without the margin); all four are needed at full strength.
+
 \paragraph{Limitations.}
 \begin{itemize}[leftmargin=*,itemsep=0pt,topsep=1pt]
   \item \textbf{\plauc{} is $n=4$.} We retain it for continuity with

@@ -1,0 +1,20 @@
+=== kcat_km ===
+  model: range=[-26.16,18.83] prot-axis-coverage in train: 130/200
+  model_v5            per_lig_AUC=0.500 (n=  5)  MRR=0.134  H@5=0.184  H@10=0.276  matched=76
+  null_random         per_lig_AUC=0.500 (n=  5)  MRR=0.027  H@5=0.039  H@10=0.039  matched=76  | rho_row=-0.003 ±0.074  jac@10=0.025
+  null_prot_prior     per_lig_AUC=0.500 (n=  5)  MRR=0.013  H@5=0.000  H@10=0.000  matched=76  | rho_row=-0.008 ±0.062  jac@10=0.017
+  null_lig_prior      per_lig_AUC=0.500 (n=  5)  MRR=1.000  H@5=1.000  H@10=1.000  matched=76  | rho_row=+nan ±nan  jac@10=0.038
+
+=== km ===
+  model: range=[-29.24,14.62] prot-axis-coverage in train: 123/200
+  model_v5            per_lig_AUC=0.438 (n=  4)  MRR=0.023  H@5=0.017  H@10=0.051  matched=59
+  null_random         per_lig_AUC=0.438 (n=  4)  MRR=0.026  H@5=0.034  H@10=0.051  matched=59  | rho_row=+0.007 ±0.075  jac@10=0.030
+  null_prot_prior     per_lig_AUC=0.500 (n=  4)  MRR=0.010  H@5=0.000  H@10=0.000  matched=59  | rho_row=-0.134 ±0.026  jac@10=0.008
+  null_lig_prior      per_lig_AUC=0.500 (n=  4)  MRR=1.000  H@5=1.000  H@10=1.000  matched=59  | rho_row=+nan ±nan  jac@10=0.038
+
+=== turnover ===
+  model: range=[-27.28,39.66] prot-axis-coverage in train: 121/200
+  model_v5            per_lig_AUC=0.500 (n=  1)  MRR=0.040  H@5=0.029  H@10=0.114  matched=35
+  null_random         per_lig_AUC=0.500 (n=  1)  MRR=0.021  H@5=0.000  H@10=0.057  matched=35  | rho_row=-0.002 ±0.068  jac@10=0.026
+  null_prot_prior     per_lig_AUC=0.500 (n=  1)  MRR=0.014  H@5=0.000  H@10=0.000  matched=35  | rho_row=-0.025 ±0.090  jac@10=0.011
+  null_lig_prior      per_lig_AUC=0.500 (n=  1)  MRR=1.000  H@5=1.000  H@10=1.000  matched=35  | rho_row=+nan ±nan  jac@10=0.027

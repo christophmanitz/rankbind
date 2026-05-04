@@ -50,7 +50,10 @@ fi
 LOG_DIR="$PROJECT_ROOT/logs"
 mkdir -p "$LOG_DIR"
 
-JOBNAME="v5_${CFG_NAME}"
+# Slashes in CFG_NAME (e.g. sweeps/hp_brenda_sabio/foo) are invalid in SLURM
+# job names and produce nonexistent log paths. Sanitize for these two uses,
+# CFG_PATH is already resolved above so the actual config still loads fine.
+JOBNAME="v5_${CFG_NAME//\//_}"
 
 sbatch <<EOF
 #!/bin/bash

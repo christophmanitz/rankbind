@@ -467,6 +467,105 @@ ranking quality: 0.95 → 0.65 in gAUC, 0.06 → 0.33 in matrix MRR. The right
 benchmark for an enzyme–substrate model is the latter — pooled AUC
 certifies a property that does not generalise across ligand identity.
 
+### 8.1 Does the recipe survive larger, enzyme-wide data?
+
+The headline numbers in §6 are on BRENDA-200, a hydrolase-restricted
+sub-corpus with 200 unique proteins and 200 unique ligands. To probe whether
+RankBind's anti-shortcut behaviour persists outside that regime we re-ran
+the v4 default on three BRENDA+SABIO with-decoys datasets at 50× the scale
+(`kcat_km` 43k pairs / 3.8k proteins / 13.1k SMILES; `km` 57k / 9.5k / 14.6k;
+`turnover` 42k / 5.7k / 13.5k) and re-applied the `null_prot_prior` probe.
+
+| Dataset (v5 default) | Matrix MRR | rho(row, `null_prot_prior`) | Top-10 Jaccard vs. `null_prot_prior` |
+|---|---:|---:|---:|
+| BRENDA-200 (Phase-1 GraphDTA / DrugBAN / GEMS) | 0.001–0.06 | n.a. | **0.54–0.67** |
+| BRENDA-200 (RankBind v4) | **0.326 ± 0.072** | n.a. | 0.035 ± 0.030 |
+| BRENDA+SABIO `kcat_km` (RankBind v4) | 0.134 | **−0.008 ± 0.062** | **0.017** |
+| BRENDA+SABIO `km` (RankBind v4) | 0.023 | **−0.134 ± 0.026** | **0.008** |
+| BRENDA+SABIO `turnover` (RankBind v4) | 0.040 | **−0.025 ± 0.090** | **0.011** |
+
+Two observations. (i) **The shortcut does not return.** The mean per-row
+Spearman between the v4 score matrix and `null_prot_prior` is at or below
+zero on all three enzyme-wide datasets, and the top-10 Jaccard is one to two
+orders of magnitude smaller than for the unmitigated Phase-1 baselines on
+BRENDA-200. The anti-shortcut property of the recipe transfers cleanly.
+(ii) **Absolute ranking quality drops.** Matrix MRR falls 2–14× from the
+BRENDA-200 default. Diagnostically this is *not* the Phase-1 pathology
+re-emerging (the model is not just learning the per-protein training base
+rate); it is signal-to-noise loss on a much harder ranking pool —
+~5k candidate proteins instead of 200, and decoys drawn from a 14k-SMILES
+universe instead of 200. The pre-registered `hard_pool_size = 50` is
+about 25% of the BRENDA-200 train set but 0.5–1.3% of the BRENDA+SABIO
+train set, so hard-negative mining devolves toward random sampling at this
+scale. Hyperparameter scaling (rather than a new method) is the indicated
+intervention. We treat this as a transferability finding for the diagnosis,
+not a competitive enzyme-wide result, and defer enzyme-wide hyperparameter
+re-tuning to future work.
+
+### 8.2 Practitioner recipe — what to do for a new model or dataset
+
+The evidence above and in §6 supports a small, ordered recipe for any
+enzyme–substrate or general DTI work:
+
+1. **Run the `null_prot_prior` probe before reporting any pooled metric.**
+   Score each (L, P) pair on the test set using only the per-protein
+   training positive rate. If the resulting matrix matches your model in
+   global AUC and the top-K attractor proteins overlap heavily (Top-10
+   Jaccard ≥ 0.30), pooled AUC has been certified by a property that does
+   not depend on the ligand. Switch the primary metric to ligand-conditional
+   matrix MRR or Hit@K. The probe is a single matrix multiply and costs
+   nothing to maintain.
+2. **Use a within-ligand margin loss as the ranking objective.** This is
+   the largest single lever in our ablation: removing it collapses MRR by
+   ~8× (0.326 → 0.041) and the pooled AUC of the no-margin model rebounds
+   to 0.95 — the shortcut returns. We recommend this loss in preference to
+   BCE on imbalanced batches, and explicitly *not* as an additive auxiliary:
+   a BCE auxiliary at weight 0.5 lifted gAUC by only +0.03 without
+   recovering ranking quality (§6.4).
+3. **Pair the loss with a protein-balanced sampler.** For each protein in
+   the training set, draw an approximately equal number of positive and
+   negative pairs per epoch. Removing this sampler costs −44% MRR on top of
+   the margin loss alone, because heavily positive proteins re-imprint the
+   per-protein prior whenever they dominate a batch.
+4. **Add online hard-negative mining, but scale `hard_pool_size` with the
+   number of train proteins.** On BRENDA-200 a fixed pool of 50 hardest
+   non-positive proteins per anchor lifts MRR from 0.20 to 0.33 (+62%). On
+   BRENDA+SABIO with 3.8–9.5k train proteins the same fixed value covers
+   < 1.3% of the protein pool and degrades to near-random sampling. We
+   recommend setting `hard_pool_size` to ~10–25% of `n_train_proteins` and
+   monitoring `pos_above_neg_max` to confirm the pool is producing
+   informative negatives (it should rise into 0.95+ over training).
+5. **Prefer a low-rank bilinear interaction head over an MLP-concat head.**
+   At matched capacity (≈66k head parameters) the means are similar but
+   bilinear cuts seed-to-seed standard deviation by 2.2× on MRR
+   (0.072 vs. 0.161), and similarly on Hit@10 and Gini-residual. The
+   stability matters more than the marginal mean for paper-grade results.
+6. **For per-residue protein representations, normalise per residue before
+   pooling.** Replacing the v4 mean-pool over per-residue ESM2 with a
+   learned-query attention pool (+3,840 parameters, +0.6%) lifted MRR
+   0.326 → 0.427. The attention-weight audit (§7.3) shows the active
+   mechanism is per-residue LayerNorm rather than sharp pocket selection;
+   a structurally-equivalent baseline that simply applies LayerNorm
+   pre-pool is therefore a cheap, parameter-free first stop.
+7. **Do not gate model selection on pooled AUC.** Retain it for
+   comparability with prior work, but on enzyme–substrate corpora with a
+   skewed per-protein label distribution it certifies a property the
+   ranking task should explicitly trade away (§6.4). Three-seed matrix MRR
+   with seed-aware standard deviations is the metric to gate on.
+8. **Re-run the null probe on every new dataset.** A drop in MRR may have
+   two distinct causes — shortcut return or signal-to-noise loss at scale
+   — and the probe distinguishes them. On BRENDA+SABIO our probe rules out
+   the first (rho ≈ 0 with `null_prot_prior`), pointing at hyperparameter
+   scaling rather than an architectural problem. The opposite finding
+   would have indicated the recipe needs strengthening, not just retuning.
+
+The recipe is intentionally short. The Phase-1 diagnosis identified a
+single failure mode — protein-level prior fitting — and §6 isolated four
+remedies that *jointly* break it. None of the four ingredients alone is
+sufficient (margin alone reaches MRR 0.183 without the sampler;
+hard-negative mining contributes nothing without the margin); all four are
+needed at full strength.
+
 **Limitations.**
 
 - *Per-ligand AUC is n = 4.* We retain it for continuity with prior work

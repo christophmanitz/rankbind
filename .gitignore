@@ -6,6 +6,8 @@ external/
 v4_residue_only/checkpoints/
 v4_residue_only/checkpoints_v2/
 v4_residue_only/analysis_results/
+v4_residue_only/runs_brenda_sabio/
+v4_residue_only/cache_brenda_sabio_proteins/
 *.tar.gz
 *.pt
 *.pkl

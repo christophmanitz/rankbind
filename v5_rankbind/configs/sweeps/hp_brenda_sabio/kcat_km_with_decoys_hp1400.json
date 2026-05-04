@@ -1,0 +1,9 @@
+{
+  "extends": "../../datasets/kcat_km_with_decoys.json",
+  "name": "kcat_km_with_decoys_hp1400",
+  "description": "Stage-1 hard_pool_size sweep on BRENDA+SABIO kcat_km_with_decoys. hp=1400 (other HPs unchanged from with_decoys default; bilinear head, margin loss, balanced sampler retained).",
+  "triplet": {
+    "hard_pool_size": 1400,
+    "negative_sampling_note": "Stage-1 sweep override: hard_pool_size=1400. Diagnosed default=50 was 0.5\u20131.3 % of n_train_proteins on these scales (probe: null_prior_probe_brenda_sabio.csv); sweep covers ~4\u201350 % coverage."
+  }
+}
