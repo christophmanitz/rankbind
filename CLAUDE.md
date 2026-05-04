@@ -66,7 +66,8 @@
 
 ## Read this first
 
-- `development_plan_rankbind.md` — pre-Phase-1 plan. **Do not edit.**
+- `docs/development_plan.md` — pre-Phase-1 plan. **Do not edit.**
+  (Moved from project root 2026-05-04.)
 - `v5_rankbind/PLAN.md` — pre-Phase-2 plan. **Do not edit §1-§9.** Append
   addenda only.
 - `CLAUDE.md` (this file) + `v5_rankbind/PHASE2_LOG.md` — the authoritative
@@ -126,7 +127,7 @@ Source: `evaluation/attractor_results/test_summary_all.csv` and
 `cross_model_overlap.csv`. Gini for all four ≈ 0.995, same as
 `null_prot_prior`.
 
-## What changed vs development_plan_rankbind.md
+## What changed vs docs/development_plan.md
 
 - **Phase 1.2 Gini-based diagnosis**: demoted. Gini stays as a secondary
   descriptor but is no longer a success criterion. The new primary metric is
@@ -293,7 +294,7 @@ Ablation table and paper reading live in `v5_rankbind/PHASE2_LOG.md`.
 **Don't**
 - Don't reintroduce GIGN, SKiD, DiffDock, DeepDTA, DualBind. These were
   removed after Phase 1. Adding a fifth baseline does not change the story.
-- Don't edit `development_plan_rankbind.md` or `v5_rankbind/PLAN.md` §1-§9.
+- Don't edit `docs/development_plan.md` or `v5_rankbind/PLAN.md` §1-§9.
   Both are historical references; append addenda sections instead.
 - Don't treat Gini as a success metric. It is bounded above by the data
   prior; any model that fits the training distribution will match.

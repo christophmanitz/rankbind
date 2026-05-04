@@ -1,30 +1,61 @@
 # RankBind
 
-Research workspace for *RankBind: Protein-Invariant Contrastive Learning
-for Ligand-Conditional DTI* (working title). This repository holds the
-human-authored Python source, SLURM submission scripts, configs,
-diagnostics and paper draft. Bulk artefacts (datasets, model
-checkpoints, run outputs, logs) are produced by the code in here but
-are not tracked.
+Research repository for *RankBind: Protein-Invariant Contrastive Learning
+for Ligand-Conditional DTI* (working title).
 
-For session-by-session deltas and the live status, read
-[`CLAUDE.md`](CLAUDE.md). For the pre-Phase-1 plan,
-[`development_plan_rankbind.md`](development_plan_rankbind.md). For
-the Phase-2 log,
-[`v5_rankbind/PHASE2_LOG.md`](v5_rankbind/PHASE2_LOG.md).
+The paper draft (`paper/main.tex`, `paper/paper.md`) is the canonical
+description of the work; this README is a navigational index. Every
+numerical result in the paper is reproducible end-to-end from this
+repository at the current commit — see `REPRODUCIBILITY.md` for the
+exact commands.
 
-## Layout
+---
+
+## 1. Paper at a glance
+
+The paper makes four contributions, located as follows in the source
+tree:
+
+| Contribution                                                       | Code lives in                              | Pinned artefacts under                                            | Paper section |
+|--------------------------------------------------------------------|--------------------------------------------|-------------------------------------------------------------------|---------------|
+| **(C1) Null-baseline diagnosis** of pooled-AUC shortcut on BRENDA  | `evaluation/null_baselines.py`, `evaluation/attractor_diagnosis.py`, `evaluation/cross_model_overlap.py`, `evaluation/test_set_eval.py` | `results/original_*/score_matrix_*.npy` + `evaluation/attractor_results/{test_summary_all,gini_comparison,cross_model_overlap}.csv` | §3 |
+| **(C2) RankBind architecture** (sampler + margin + bilinear + hard-negs) | `v5_rankbind/{data,sampler,model,loss,metrics,train,eval}.py` + `v5_rankbind/configs/` | `results/v5_rankbind/*_v4_s{42,7,1337}/` (3 seeds × 5 ablations)  | §4–§6 |
+| **(C3) Residue-level extension** (attention pool over per-residue ESM2) | `v5_rankbind/configs/abl_attn_pool.json` (model already in `v5_rankbind/model.py`); audit in `evaluation/attn_weight_inspection.py` | `results/v5_rankbind/*_v5b_s*/` + `paper/figures/fig_attn_*.png`  | §7 |
+| **(C4) Transferability probe + practitioner recipe** on enzyme-wide BRENDA+SABIO | `evaluation/null_prior_probe_brenda_sabio.py`, `v4_residue_only/{train_brenda_sabio.py,dataset_split.py,run_brenda_sabio.sh}` | `evaluation/attractor_results/null_prior_probe_brenda_sabio.{csv,txt}` + the three `*_with_decoys_bs_v1` v5 run dirs | §8.1 + §8.2 |
+
+The Stage-1 hyperparameter sweep submitted alongside this commit
+(`scripts/run_v5_brenda_sabio_hp_sweep.sh`, twelve configs under
+`v5_rankbind/configs/sweeps/hp_brenda_sabio/`) is **not** in the
+paper's headline results; how its outcomes are folded back into the
+paper is documented in `docs/HP_SWEEP_INTEGRATION_PLAN.md`.
+
+---
+
+## 2. Layout
 
 ```
-v5_rankbind/        Phase-2 ranking model (data, sampler, model, loss,
-                    metrics, train/eval). Configs under configs/.
+v5_rankbind/        Phase-2 ranking model — the paper's headline
+                    architecture. Data, sampler, model, loss, metrics,
+                    train/eval, configs (datasets/, sweeps/), run-manifest
+                    helpers.
 baselines/          Phase-1 adapters + unified trainer (GraphDTA,
-                    MolTrans, DrugBAN, GEMS).
-evaluation/         Diagnostic stack — null baselines, attractor
-                    diagnosis, cross-model overlap, figures.
-scripts/            SLURM submission scripts and aggregators.
-paper/              LaTeX + Markdown draft and figures.
-v4_residue_only/    Deprecated Phase-0 code, kept for reference.
+                    MolTrans, DrugBAN, GEMS). Used to produce the four
+                    score matrices §3.3 cites.
+evaluation/         Diagnostic stack — null baselines (BRENDA-200 + a
+                    BRENDA+SABIO-aware variant), attractor diagnosis,
+                    cross-model overlap, test-set eval, attention-weight
+                    audit, publication figures.
+v4_residue_only/    The Phase-0 residue-only training stack, retained
+                    because §8.1 reuses it for the BRENDA+SABIO v4 runs
+                    (drop-in runner: train_brenda_sabio.py +
+                    dataset_split.py + run_brenda_sabio.sh).
+scripts/            SLURM submission scripts and aggregators
+                    (run_v5_rankbind.sh, run_v5_multiseed.sh,
+                    run_v5_ablations.sh, run_v5_brenda_sabio_hp_sweep.sh,
+                    aggregate_multiseed.py, collect_v5_runs.py).
+paper/              LaTeX + Markdown draft, figures, references.bib,
+                    Makefile.
+docs/               Historical plans + the HP-sweep integration plan.
 
 reactionDataFiltering/   git submodule — the dataset pipeline
                          (BRENDA + SABIO-RK -> filter -> decoys ->
@@ -32,14 +63,22 @@ reactionDataFiltering/   git submodule — the dataset pipeline
                          embeddings -> graphs). Has its own GitHub
                          remote and CI; see its README.
 
-data/, results/, logs/, external/, *.tar.gz   gitignored. Regenerable
-                                              from code + the dataset
-                                              pipeline.
+CLAUDE.md           Live session-by-session status + do/don't list.
+                    Read first if you are continuing a paused session.
+README.md           This file. Paper-result-to-code index.
+REPRODUCIBILITY.md  Exact commands per paper finding.
+
+data/, results/, logs/, external/, *.tar.gz, *.pt, *.npy
+                    gitignored. Regenerable from code + the dataset
+                    pipeline. See REPRODUCIBILITY.md §4 for what is
+                    regenerable from this repo alone vs. external.
 ```
 
-## Setup
+---
 
-This repository depends on the `reactionDataFiltering/` submodule —
+## 3. Setup
+
+The repository depends on the `reactionDataFiltering/` submodule —
 clone with `--recurse-submodules`, or initialise after a plain clone:
 
 ```bash
@@ -47,7 +86,6 @@ clone with `--recurse-submodules`, or initialise after a plain clone:
 git clone --recurse-submodules <rankbind-url>
 
 # Already cloned without --recurse-submodules:
-cd rankbind
 git submodule update --init --recursive
 ```
 
@@ -67,15 +105,19 @@ and the evaluation diagnostics. DrugBAN needs its own venv
 (`~/venvs/drugban`); ESM2 embedding generation in the submodule
 uses `~/venvs/esm2`.
 
-## Working with the submodule
+### Smoke check after clone
+
+See `REPRODUCIBILITY.md` §5.
+
+---
+
+## 4. Working with the submodule
 
 Day-to-day editing of dataset-pipeline code happens **inside** the
 submodule, not from the parent repo:
 
 ```bash
 cd reactionDataFiltering
-# normal git workflow — commits and pushes go to the
-# reactionDataFiltering remote on GitHub
 git checkout main
 git pull
 # ... edit, test, commit, push as usual
@@ -86,7 +128,6 @@ repo will show the submodule as "modified" because the pinned
 commit is no longer the submodule's HEAD. To bump the pin:
 
 ```bash
-cd ~/rankbind
 git status                          # shows: modified: reactionDataFiltering
 git diff reactionDataFiltering      # shows old hash -> new hash
 git add reactionDataFiltering
@@ -119,15 +160,18 @@ against an old submodule and may see weird import or path errors.
   will check out the *old* pinned hash and not see your changes.
   Always pair the two pushes.
 
-## Documentation surface
+---
 
-- [`CLAUDE.md`](CLAUDE.md) — live status + do/don't list (read first).
-- [`development_plan_rankbind.md`](development_plan_rankbind.md) —
-  pre-Phase-1 plan. Historical, do not edit.
-- [`PHASE1_STATUS.md`](PHASE1_STATUS.md) — Phase-1 outcome snapshot.
-- [`v5_rankbind/PHASE2_LOG.md`](v5_rankbind/PHASE2_LOG.md) — Phase-2
-  session log.
-- [`v5_rankbind/PLAN.md`](v5_rankbind/PLAN.md) — pre-Phase-2 plan
-  (do not edit §1-§9, append addenda only).
-- [`reactionDataFiltering/README.md`](reactionDataFiltering/README.md)
-  — dataset pipeline overview + CLI reference.
+## 5. Documentation surface
+
+| File | What it is |
+|------|------------|
+| [`paper/main.tex`](paper/main.tex), [`paper/paper.md`](paper/paper.md) | The paper draft. |
+| [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md) | Per-result regeneration commands. |
+| [`CLAUDE.md`](CLAUDE.md) | Live status + do/don't list. Read first if continuing a paused session. |
+| [`docs/HP_SWEEP_INTEGRATION_PLAN.md`](docs/HP_SWEEP_INTEGRATION_PLAN.md) | Pre-registered decision rules for the in-flight HP sweep. |
+| [`docs/development_plan.md`](docs/development_plan.md) | Pre-Phase-1 plan. Historical, do not edit. |
+| [`docs/phase1_status.md`](docs/phase1_status.md) | Phase-1 outcome snapshot. |
+| [`v5_rankbind/PHASE2_LOG.md`](v5_rankbind/PHASE2_LOG.md) | Phase-2 session log (live; appendable). |
+| [`v5_rankbind/PLAN.md`](v5_rankbind/PLAN.md) | Pre-Phase-2 plan. Do not edit §1-§9, append addenda only. |
+| [`reactionDataFiltering/README.md`](reactionDataFiltering/README.md) | Dataset-pipeline overview + CLI reference. |

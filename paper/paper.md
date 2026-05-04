@@ -26,7 +26,14 @@ based on a learned attention pool over per-residue ESM2 embeddings adds a
 further **+0.10 absolute MRR** at +0.6% parameters; an attention-weight audit
 reveals that the lift is driven by per-residue normalisation rather than
 sharp pocket selection, with the rank order of attention weights nevertheless
-reproducible across seeds (Spearman ρ = 0.86). Code, configurations, and
+reproducible across seeds (Spearman ρ = 0.86). A transferability probe on
+three enzyme-wide BRENDA+SABIO with-decoys datasets at 50× the scale
+(43–57k pairs) shows the recipe's anti-shortcut property survives the
+shift — top-10 Jaccard with the data-blind prior remains 0.008–0.017 — even
+though absolute ranking quality drops, which we trace to a fixed
+hard-negative pool that is no longer the right size at scale. We distil
+the findings into an eight-step practitioner recipe for diagnosing and
+breaking protein-level shortcuts in DTI models. Code, configurations, and
 three-seed manifests are released for reproducibility.
 
 ---
@@ -81,6 +88,12 @@ ligand.
    parameters, together with an attention-weight audit identifying
    per-residue normalisation — not sharp pocket selection — as the active
    mechanism (§7).
+4. A **transferability probe** on three enzyme-wide BRENDA+SABIO datasets at
+   50× the scale showing the recipe's anti-shortcut property is preserved
+   (top-10 Jaccard with `null_prot_prior` 0.008–0.017, mean per-row Spearman
+   ≤ 0), distilled into an **eight-step practitioner recipe** for
+   diagnosing and breaking the same shortcut on a new model or dataset
+   (§8).
 
 ---
 
@@ -596,10 +609,76 @@ ranking through the joint action of protein-balanced sampling, a
 within-ligand margin loss, a matched-capacity bilinear head, and online
 hard-negative mining. A residue-level extension adds +0.10 absolute MRR
 and reveals that residue-level information is best exploited via
-per-residue normalisation rather than learned pocket selection. We release
-code, configurations, and three-seed manifests; the natural next step is a
-cross-dataset probe on ESP and TurNuP to measure how much of this lift
-transfers under distribution shift.
+per-residue normalisation rather than learned pocket selection. A
+transferability probe on three enzyme-wide BRENDA+SABIO datasets confirms
+that the recipe's anti-shortcut property survives a 50× scale-up even
+when absolute ranking quality does not, isolating
+fixed-pool hard-negative mining as the indicated next-step intervention.
+We distil the empirical findings into an eight-step practitioner recipe
+for diagnosing and breaking the same shortcut on new DTI models or
+datasets. We release code, configurations, three-seed manifests and the
+null-prior probe so that any future enzyme–substrate model can be
+audited the same way; the natural next step is to close the
+enzyme-wide gap by scaling the recipe's hard-negative pool with
+$n_{\text{train\_proteins}}$, alongside a cross-dataset probe on ESP and
+TurNuP under distribution shift.
+
+---
+
+## Appendix A. Reproducibility
+
+Every result in this paper is regenerable from the published repository at
+a single pinned commit. The repository is split into the parent
+(`rankbind/`) and a git submodule (`reactionDataFiltering/`) that owns the
+dataset pipeline; cloning with `--recurse-submodules` pins both components
+together. Section §3 of the repository's `REPRODUCIBILITY.md` lists each
+table and figure in this paper alongside the exact command that emits it.
+
+**Hardware and environment.** All training and evaluation runs use one
+NVIDIA A30 GPU on the Leipzig HPC cluster. PyTorch 2.8.0 + CUDA 12.4 in
+the `~/venvs/hieratombind` virtual environment. Module load:
+`GCC/11.3.0 CUDA/12.4.0 Python/3.10.4-GCCcore-11.3.0`. Mean per-seed
+walltime ≈ 1.5 h (v4) or 4 h (Stage-b residue extension).
+
+**Data.** BRENDA enzyme–substrate pairs with curated decoys, available
+at `data/dataset_with_decoys.csv` (positives) +
+`data/sequences/sequences.csv` (sequences) + AlphaFold structures under
+`~/hpc/structures/`. The protein-stratified split (seed 42, 70/15/15)
+is implemented once in
+`baselines/adapters/common.py::BRENDADataConfig.get_protein_split` and
+reused by every model and every diagnostic.
+
+**Per-run provenance.** Each training run writes a `manifest.json` under
+`results/v5_rankbind/<run_id>/` capturing: resolved configuration JSON
+(after `extends`-merging), git commit + dirty flag, library versions,
+input-CSV SHA-256, split statistics, and SHA-256 of the best-model
+checkpoint and 200×200 score matrix. The manifest pins the run such that
+any single result in the paper can be traced back to its exact code,
+configuration, and data file content.
+
+**Probe code.** The `null_prot_prior` probe used in §3 and §8.1 lives at
+`evaluation/null_baselines.py` (BRENDA-200, 200×200) and
+`evaluation/null_prior_probe_brenda_sabio.py` (enzyme-wide,
+per-dataset). Both are runnable in under a minute on a CPU and emit
+`gini_comparison.csv` / `null_prior_probe_brenda_sabio.csv`.
+
+**Multi-seed aggregation.** The three-seed mean ± std numbers in §6.1 are
+produced by `scripts/aggregate_multiseed.py` walking
+`results/v5_rankbind/*_v4*/manifest.json` and emitting
+`evaluation/attractor_results/phase2_rankbind_multiseed.csv`. The same
+script is invoked unchanged when adding seeds.
+
+**Figures.** All publication figures are regenerated by
+`evaluation/phase_d_figures.py`; the `MATRIX_FILES` dictionary therein
+maps each model name to its `score_matrix_*.npy`.
+
+**Hyperparameter sweep (in flight at submission).** A Stage-1
+`hard_pool_size` sweep over the three BRENDA+SABIO with-decoys datasets
+is configured under `v5_rankbind/configs/sweeps/hp_brenda_sabio/`, with
+twelve JSON configs (4 sweep values × 3 datasets); submission via
+`scripts/run_v5_brenda_sabio_hp_sweep.sh`. Decision rules for
+integrating sweep outcomes back into this paper are documented in
+`docs/HP_SWEEP_INTEGRATION_PLAN.md`.
 
 ---
 
