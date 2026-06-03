@@ -1,0 +1,24 @@
+{
+  "extends": "../../default.json",
+  "name": "esp",
+  "description": "ESP (Kroll et al. 2023) enzyme-substrate benchmark with native negatives. SAME task as BRENDA -> RankBind may target competitive matrix MRR / Hit@K here. See docs/BENCHMARK_INTEGRATION_PLAN.md.",
+
+  "data": {
+    "csv_path": "reactionDataFiltering/data/interim/benchmarks/esp/pairs.csv",
+    "seq_csv":  "reactionDataFiltering/data/interim/benchmarks/esp/sequences.csv",
+    "esm2_dir": "reactionDataFiltering/data/interim/benchmarks/esp/esm2_embeddings",
+    "val_frac": 0.15,
+    "test_frac": 0.15
+  },
+
+  "dataset_meta": {
+    "source": "github.com/AlexanderKroll/ESP (Kroll et al., Nat. Commun. 2023)",
+    "task": "binary enzyme-substrate prediction with constructed negatives",
+    "binarisation": "native binary label (1 = substrate, 0 = non/decoy)",
+    "smiles_col": "substrate_smiles",
+    "protein_col": "uniprot",
+    "label_col": "label",
+    "split": "ESP own split when comparing to their numbers; else project protein-split (seed 42)",
+    "role": "second enzyme-substrate corpus (competitive comparison)"
+  }
+}

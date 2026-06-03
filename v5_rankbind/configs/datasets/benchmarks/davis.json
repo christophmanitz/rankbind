@@ -1,0 +1,24 @@
+{
+  "extends": "../../default.json",
+  "name": "davis",
+  "description": "TDC Davis kinase DTI benchmark, binarised at pKd >= 7. Used to test whether the protein-prior shortcut diagnosis generalises beyond enzyme-substrate (NOT a competitive-affinity claim). See docs/BENCHMARK_INTEGRATION_PLAN.md.",
+
+  "data": {
+    "csv_path": "reactionDataFiltering/data/interim/benchmarks/davis/pairs.csv",
+    "seq_csv":  "reactionDataFiltering/data/interim/benchmarks/davis/sequences.csv",
+    "esm2_dir": "reactionDataFiltering/data/interim/benchmarks/davis/esm2_embeddings",
+    "val_frac": 0.15,
+    "test_frac": 0.15
+  },
+
+  "dataset_meta": {
+    "source": "TDC DTI('DAVIS')",
+    "task": "kinase Kd affinity, binarised",
+    "binarisation": "label = 1 if pKd >= 7 (Kd <= 100 nM)",
+    "smiles_col": "substrate_smiles",
+    "protein_col": "uniprot",
+    "label_col": "label",
+    "split": "project protein-split (BRENDADataConfig, seed 42) applied by loader",
+    "role": "diagnosis-generalisation (beyond enzyme-substrate)"
+  }
+}
