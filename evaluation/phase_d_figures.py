@@ -62,7 +62,14 @@ def fig_response_maps(matrices):
         M = matrices[name]
         attr = compute_attractor_scores(M)
         g = gini(attr)
-        im = ax.imshow(M, aspect='auto', cmap='viridis', interpolation='nearest')
+        # Per-panel robust colour scale: 1st-99th percentile clipping so a few
+        # extreme outliers (notably MolTrans, range ~ -1000..200) don't flatten
+        # the rest of the matrix to one colour.
+        lo, hi = np.percentile(M, [1.0, 99.0])
+        if lo == hi:
+            lo, hi = float(M.min()), float(M.max())
+        im = ax.imshow(M, aspect='auto', cmap='viridis',
+                       interpolation='nearest', vmin=lo, vmax=hi)
         ax.set_title(f"{name}\nGini = {g:.3f}", fontsize=11)
         ax.set_xlabel("Protein idx", fontsize=9)
         ax.set_ylabel("Ligand idx", fontsize=9)
@@ -160,7 +167,10 @@ def fig_summary(matrices, test_df):
         if name not in matrices: continue
         ax = fig.add_subplot(gs[0, i])
         M = matrices[name]; g = gini(compute_attractor_scores(M))
-        im = ax.imshow(M, aspect='auto', cmap='viridis')
+        lo, hi = np.percentile(M, [1.0, 99.0])
+        if lo == hi:
+            lo, hi = float(M.min()), float(M.max())
+        im = ax.imshow(M, aspect='auto', cmap='viridis', vmin=lo, vmax=hi)
         ax.set_title(f"{name} | Gini={g:.3f}", fontsize=10)
         ax.set_xlabel("Protein", fontsize=8); ax.set_ylabel("Ligand", fontsize=8)
         plt.colorbar(im, ax=ax, shrink=0.75)
