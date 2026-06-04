@@ -28,6 +28,7 @@ PARTITION="${2:-paula}"
 TAG="${3:-}"
 SEED="${4:-}"
 WALLTIME="${5:-06:00:00}"  # SLURM HH:MM:SS; bump for big datasets (e.g. km ~10h)
+DEPENDENCY="${DEPENDENCY:-}"  # optional env var, e.g. afterany:123:124 — job waits
 
 # When a seed override is supplied, fold it into the tag so run_ids remain
 # unique per (config, tag, seed). If the caller already included "_s7" etc.
@@ -55,7 +56,7 @@ mkdir -p "$LOG_DIR"
 # CFG_PATH is already resolved above so the actual config still loads fine.
 JOBNAME="v5_${CFG_NAME//\//_}"
 
-sbatch <<EOF
+sbatch ${DEPENDENCY:+--dependency=$DEPENDENCY} <<EOF
 #!/bin/bash
 #SBATCH --job-name=${JOBNAME}
 #SBATCH --output=${LOG_DIR}/${JOBNAME}_%j.out

@@ -1,0 +1,21 @@
+{
+  "extends": "esp.json",
+  "name": "esp_attn",
+  "description": "ESP benchmark with the v5b residue attention-pool (best model). ESP is a second enzyme-substrate corpus -> RankBind targets competitive performance here, so we use the strongest variant (attn_pool) rather than the v4 default. See docs/BENCHMARK_INTEGRATION_PLAN.md.",
+  "model": {
+    "head": "bilinear",
+    "d_lig": 256,
+    "d_prot": 256,
+    "bilinear_rank": 128,
+    "mlp_hidden": 128,
+    "lig_input_dim": 384,
+    "prot_input_dim": 1280,
+    "dropout": 0.0,
+    "protein_encoder": "attn_pool",
+    "max_residues": 1024,
+    "encoders": {
+      "protein": "esm2_residue_attn_pool_frozen",
+      "ligand":  "chemberta_mean_pool_frozen"
+    }
+  }
+}
