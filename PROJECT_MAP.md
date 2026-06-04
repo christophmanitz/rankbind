@@ -99,9 +99,10 @@ curated 200-protein slice in tier 1.
 | `docs/` | plans & specs (dev plan, phase-1 status, HP-sweep plan, benchmark plan) | ✅ reference |
 | `external/` | upstream clones of the baseline repos (reference only, not run directly) | ✅ reference |
 | `logs/` | SLURM job logs | ✅ keep (prunable) |
-| **`v4_residue_only/`** | **12 GB** older standalone "residue-only" experiment (separate from v5b); last touched May 3 | ⚠️ **likely superseded — archive candidate** |
-| `baselines/deepdta`, `baselines/dualbind_nvidia`, `baselines/gign` | **dropped** baselines (removed after Phase 1) | ⚠️ **clutter — archive candidate** |
-| `training/` | **empty** | ⚠️ **delete candidate** |
+| `_archive/` | retired/superseded material, git-ignored, kept on disk + in history (see `_archive/README.md`): `v4_residue_only/` (12 GB, superseded by v5b) and `baselines_dropped/` (deepdta/dualbind_nvidia/gign) | 🗄️ archive (ignore) |
+
+*(Cleaned 2026-06-04: `v4_residue_only/`, the dropped baselines, and an empty
+`training/` were moved out of the active tree into `_archive/`.)*
 
 ---
 
@@ -139,12 +140,14 @@ paper-ready summary CSVs in `evaluation/attractor_results/`.
 
 ## 8. Current status (2026-06-04)
 
-- **Running now:** §8.1 3-seed peaks (kcat_km, km) + ESP embeddings. turnover
+- **Running now:** §8.1 3-seed peaks for kcat_km + km (4 jobs). turnover
   3-seed already done → **MRR 0.417 ± 0.076** (beats the BRENDA-200 headline).
-- **Benchmark data ready:** ESP, Davis, KIBA, BindingDB downloaded + embeddings
-  computing (on `/work2`, expires ~Jul 4 — reminder email set).
-- **Next:** finish §8.1 aggregation; run RankBind+null-probe on the 4
-  benchmarks (v5b for ESP, v4 for kinase sets) → write §8.3.
+- **Benchmark data fully ready:** ESP / Davis / KIBA / BindingDB downloaded
+  **and all ESM2 embeddings computed** (on `/work2`, expires ~Jul 4 — reminder
+  email set). §8.3 runs can start as soon as the GPU frees up.
+- **Next:** finish §8.1 aggregation (kcat_km + km peaks); then run
+  RankBind+null-probe on the 4 benchmarks (v5b for ESP, v4 for kinase sets)
+  → write §8.3.
 
 For the live to-do detail see `CLAUDE.md` (handoff) and the memory files.
 
