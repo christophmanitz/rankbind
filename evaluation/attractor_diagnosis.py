@@ -17,7 +17,7 @@ and generate all figures.
 
 HPC usage (see run_attractor_diagnosis.sh):
   python evaluation/attractor_diagnosis.py \
-      --model_path v4_residue_only/checkpoints/best_model.pt \
+      --model_path _archive/v4_residue_only/checkpoints/best_model.pt \
       --model_name ResidueOnlyBind_v4 \
       --n_ligands 200 --n_proteins 200
 
@@ -299,7 +299,7 @@ def build_score_matrix_residueonlybind(
     from torch_geometric.data import Batch
 
     sys.path.insert(0, HIER_ROOT)
-    sys.path.insert(0, os.path.join(PROJECT_ROOT, 'v4_residue_only'))
+    sys.path.insert(0, os.path.join(PROJECT_ROOT, '_archive', 'v4_residue_only'))
     from ResidueOnlyBind import ResidueOnlyBind
 
     device = torch.device(device_str if torch.cuda.is_available() else 'cpu')
