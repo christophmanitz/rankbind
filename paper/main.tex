@@ -668,12 +668,38 @@ adds only the small residual.
 
 This is itself a paper-level finding. Residue-level encoding helps
 \method, but the active mechanism is per-residue normalisation rather
-than learned residue selection. The fact that the low-magnitude
-residue preference is reproducible across seeds suggests that real but
-subtle structural information is being picked up. Quantitative pocket
-overlap with M-CSA~\citep{ribeiro2018mcsa} and UniProt
-active-site~\citep{uniprot2023} annotations is a natural next
-investigation, which we defer to future work.
+than learned residue selection.
+
+\paragraph{The reproducible preference is anti-correlated with the
+pocket.} If the cross-seed-reproducible rank order encoded structural
+function, the most-attended residues should coincide with the catalytic
+and ligand-binding residues. They do not. For $50$ proteins we labelled
+the active-site and binding-site residues from UniProt
+annotations~\citep{uniprot2023} and tested whether the cross-seed
+consensus attention weight ranks those residues above background. The
+mean ROC-AUC is $0.213$ (chance $0.50$; Wilcoxon $p<10^{-4}$, with
+$43/50$ proteins below chance), the mean weight on annotated residues is
+$0.88\times$ the protein average, and annotated residues are
+under-represented in each protein's top-$10\%$ most-attended set by
+$2.3\times$. The attention pool reliably \emph{de-weights} the
+functional pocket rather than selecting it (\Cref{fig:pocket}). This is
+exactly what LayerNorm-then-pool predicts: catalytic and binding
+residues are among the most conserved, highest-norm positions in ESM2
+space, so they are precisely the residues the normalisation attenuates.
+The $+0.10$ MRR therefore comes from rebalancing per-residue magnitudes,
+\emph{not} from the model discovering where the ligand binds.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{figures/fig_attn_weight_pocket_examples.png}
+  \caption{Per-residue attention weight (three seeds overlaid) for the six
+  example proteins, with UniProt \textcolor[HTML]{FF8C00}{binding-site}
+  (orange) and active-site (black dashed) residues marked; the grey dotted
+  line is the uniform weight $1/L$. The annotated functional residues do
+  not coincide with the attention peaks --- they typically fall on flat or
+  below-uniform stretches. Visual counterpart of the ROC-AUC $0.21$ result.}
+  \label{fig:pocket}
+\end{figure}
 
 \subsection{Implications for atom-level extension}
 The atom-level extension that we originally pre-registered would have
@@ -683,8 +709,10 @@ neighbourhood. The audit above blocks this mechanism empirically.
 Attention mass at rank-$8$ vs.\ rank-$50$ differs by only
 $\sim 10^{-4}$, so ``the eight most-attended residues'' is essentially
 a random sample of the protein, and even consistent top-$10\%$
-residue sets only overlap $50\%$ across seeds. We therefore defer the
-atom-level extension. A redesigned variant that uses
+residue sets only overlap $50\%$ across seeds. Worse, the audit above
+shows the most-attended residues are \emph{anti}-correlated with the
+true pocket --- so they are not merely uninformative but actively the
+wrong seed set. We therefore defer the atom-level extension. A redesigned variant that uses
 AlphaFold~\citep{jumper2021alphafold} structures and an explicit
 pocket detector such as fpocket~\citep{leguilloux2009fpocket} as
 priors, instead of attention-derived pocket selection, is the only
