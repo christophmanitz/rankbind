@@ -1,0 +1,9 @@
+{
+  "extends": "esp.json",
+  "name": "esp_bce",
+  "description": "BCE shortcut-CONTROL on ESP: Phase-1-style recipe (random sampler + BCE + MLP-concat head, no triplets). Contrast partner for the anti-shortcut esp_attn (v5b) run — establishes whether the protein-prior shortcut is takeable on this second enzyme-substrate corpus (high pooled AUC + high Top-10 Jaccard vs null_prot_prior + low matrix MRR = shortcut taken).",
+  "sampler": { "type": "random" },
+  "loss": { "type": "bce", "bce_aux_weight": 1.0, "margin": 0.0 },
+  "triplet": { "n_negatives_per_positive": 0 },
+  "model": { "head": "mlp_concat" }
+}

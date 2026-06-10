@@ -86,7 +86,7 @@ echo "Python:    \$(python --version)"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 TRAIN_LOG=\$(mktemp)
-python -m v5_rankbind.train \\
+python -u -m v5_rankbind.train \\
     --config "${CFG_PATH}" \\
     --tag "${TAG}" \\
     ${SEED:+--seed "${SEED}"} 2>&1 | tee "\$TRAIN_LOG"

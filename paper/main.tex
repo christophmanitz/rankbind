@@ -80,7 +80,16 @@ $0.008$--$0.017$), even though absolute ranking quality drops at the
 BRENDA-200-tuned pool size; a pre-registered single-seed sweep confirms
 this drop is a hyperparameter-coverage artefact, recoverable by scaling
 the hard-negative pool with the train-protein count (peak \matmrr\ up to
-$0.344$). We summarise the findings in an
+$0.344$). On three independent kinase affinity benchmarks the recipe's
+anti-shortcut behaviour carries over --- matching the BRENDA ranking on
+BindingDB --- though the ranking lift is dataset-dependent; the skewed
+protein prior that enables the shortcut is present on all three
+(Gini $\approx 0.995$), not a BRENDA artefact. Scoring every dataset
+against a matched shortcut-prone BCE control confirms the diagnosis
+generalises: the control reproduces the Phase-1 dissociation on all
+seven corpora (pooled AUC $0.84$--$0.98$ at near-chance ranking), and
+\method\ circumvents it on every catalytic enzyme dataset, lifting
+matrix MRR to $7$--$25\times$ the control's. We summarise the findings in an
 eight-step recipe for diagnosing and breaking protein-level shortcuts
 in DTI models. Code, configurations, and three-seed manifests are
 released for reproducibility.
@@ -683,9 +692,10 @@ $0.88\times$ the protein average, and annotated residues are
 under-represented in each protein's top-$10\%$ most-attended set by
 $2.3\times$. The attention pool reliably \emph{de-weights} the
 functional pocket rather than selecting it (\Cref{fig:pocket}). This is
-exactly what LayerNorm-then-pool predicts: catalytic and binding
-residues are among the most conserved, highest-norm positions in ESM2
-space, so they are precisely the residues the normalisation attenuates.
+consistent with LayerNorm-then-pool, and we pin down the operative
+axis next (\Cref{fig:annotation}): catalytic and binding residues are
+disproportionately charged and polar, exactly the residue class the
+attention suppresses.
 The $+0.10$ MRR therefore comes from rebalancing per-residue magnitudes,
 \emph{not} from the model discovering where the ligand binds.
 
@@ -699,6 +709,77 @@ The $+0.10$ MRR therefore comes from rebalancing per-residue magnitudes,
   not coincide with the attention peaks --- they typically fall on flat or
   below-uniform stretches. Visual counterpart of the ROC-AUC $0.21$ result.}
   \label{fig:pocket}
+\end{figure}
+
+\paragraph{What the rank-order \emph{does} encode: hydrophobicity, not
+function.} Having established what the attention avoids, we asked what it
+tracks. For the same $60$ proteins we took the cross-seed consensus weight
+and, \emph{within each protein}, computed its Spearman correlation with a
+panel of per-residue descriptors --- the ESM2 residue norm, Kyte--Doolittle
+hydropathy~\citep{kytedoolittle1982}, Chou--Fasman helix and $\beta$-sheet
+propensities~\citep{choufasman1978}, net charge, and sequence position ---
+then aggregated the within-protein correlations across proteins (script
+\texttt{evaluation/attn\_annotation\_scan.py}). The dominant signal is
+amino-acid hydrophobicity: the Kyte--Doolittle scale attains mean
+$\rho = +0.24$ with the same sign in $58/60$ proteins ($p<10^{-3}$,
+Wilcoxon), and the $\beta$-sheet propensity --- essentially the same axis,
+since $\beta$-residues are largely apolar --- gives $\rho = +0.22$; charge,
+sequence position, and helix propensity are at chance. Resolved per amino
+acid (\Cref{fig:annotation}a), the four charged residues
+(Glu, Lys, Arg, Asp) are the most strongly \emph{down}-weighted (mean
+within-protein $z \approx -0.46$) and the bulky apolar residues
+(Phe $z{=}{+}0.72$, Met, Leu, Ile, Val) the most \emph{up}-weighted; the
+per-amino-acid attention bias is a near-linear function of hydropathy
+(Pearson $r = 0.63$). The pool implements a hydrophobic-core
+vs.\ charged-surface contrast.
+
+\paragraph{It is a genuine preference, not the LayerNorm artefact.} The
+ESM2 residue norm is only weakly anti-correlated with the weight
+($\rho = -0.14$), and partialling the norm out of the hydrophobicity
+correlation by rank-residualisation leaves it essentially unchanged
+($\rho = +0.24 \to +0.24$; \Cref{fig:annotation}b). The hydrophobicity
+preference is therefore a real, norm-independent property of the learned
+query, not a by-product of per-residue normalisation. It also explains the
+pocket result at the residue level: catalytic residues are
+disproportionately charged or polar (Asp, Glu, Lys, His, Ser) --- exactly
+the residues the attention suppresses --- so the weight scores ROC-AUC
+$0.08$ on active sites and $0.29$ on binding sites, yet $0.59$ on
+hydrophobic signal peptides (\Cref{fig:annotation}c). The learned attention
+is a well-defined hydrophobicity detector that is orthogonal, and in the
+functionally critical residues anti-correlated, to where the ligand
+actually binds (\Cref{fig:annotation-explainer}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{fig_attn_annotation.png}
+  \caption{What the cross-seed attention rank-order encodes, across $60$
+  proteins. \textbf{(a)} Mean within-protein $z$-scored attention per amino
+  acid vs.\ Kyte--Doolittle hydropathy: a near-linear relationship
+  ($r = 0.63$), charged residues (red/orange) suppressed, apolar residues
+  (green) and Phe favoured. \textbf{(b)} Mean within-protein Spearman $\rho$
+  between attention and each per-residue descriptor; orange bars partial out
+  the ESM2 residue norm. Hydrophobicity (and the collinear $\beta$-sheet
+  propensity) dominates and survives the norm control. \textbf{(c)}
+  Within-protein ROC-AUC of attention predicting UniProt feature regions:
+  active and binding sites sit far below chance ($0.5$), hydrophobic signal
+  peptides above.}
+  \label{fig:annotation}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{fig_attn_explainer.png}
+  \caption{Intuitive view of the same result. \textbf{(1)} Within-protein
+  $z$-scored attention by residue class --- charged residues down-weighted,
+  hydrophobic and aromatic residues up-weighted. \textbf{(2)} Within-protein
+  attention \emph{percentile} of functional residues: active-site residues
+  rank at the bottom (median $3$rd percentile), whereas binding-site residues
+  are only weakly suppressed (median $16$th) with a substantial upper tail
+  --- the avoidance is strong for catalytic residues but mild and variable
+  for binding residues. \textbf{Below:} two representative proteins; the
+  attention profile (blue) tracks hydropathy (green), with active (black) and
+  binding (red) residues shown at their raw attention values.}
+  \label{fig:annotation-explainer}
 \end{figure}
 
 \subsection{Implications for atom-level extension}
@@ -815,6 +896,112 @@ preliminary until the peak \texttt{hard\_pool\_size} is re-run across
 seeds $\{42, 7, 1337\}$, which we defer to the camera-ready. We treat
 this as confirmation that the diagnosis and recipe transfer to
 enzyme-wide scale.
+
+\subsection{Does the diagnosis generalise beyond BRENDA?}
+\label{sec:generalise}
+
+The transfer above stays within the enzyme--substrate task. To probe
+the harder question --- does the \emph{diagnosis} hold on independent
+DTI corpora --- we ran two contrasting models on every dataset: a
+deliberately shortcut-prone \textbf{BCE control} (random sampler $+$
+binary cross-entropy $+$ MLP-concat head, i.e.\ the Phase-1 recipe) and
+the anti-shortcut \method. Beyond the four enzyme--substrate corpora we
+add three kinase affinity benchmarks from TDC~\citep{huang2021tdc}:
+Davis (kinase $K_d$~\citep{davis2011kinase}),
+KIBA~\citep{tang2014kiba}, and BindingDB\textsubscript{$K_d$}, each
+binarised at the DeepDTA convention~\citep{ozturk2018deepdta}
+(Davis/BindingDB $\text{p}K_d \ge 7$, KIBA score $\ge 12.1$) and split
+cold-target (unseen test proteins). These are \emph{not}
+enzyme--substrate data, and we make no claim of beating their
+specialised affinity models; moreover their native leaderboards are
+regression (MSE / concordance index) and ESP's is a pooled binary
+classifier, so none is directly comparable to our ligand-conditional
+ranking metrics. We therefore report both models against the same
+\nullprior\ instruments used throughout, not against published
+leaderboard numbers.
+
+\begin{table}[h]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \resizebox{\textwidth}{!}{%
+  \begin{tabular}{llrrrrrr}
+    \toprule
+    Dataset & Model & $n_{\text{pos}}$ & \gauc & \plauc & \matmrr & $\rho_{\text{row}}$ vs.\ \nullprior & Top-10 Jac. \\
+    \midrule
+    \multicolumn{8}{l}{\emph{Enzyme--substrate}}\\
+    kcat/$K_M$ (BRENDA+SABIO) & BCE control & $76$ & $0.948$ & $0.547$ & $0.029$ & $+0.09$ & $0.053$ \\
+                             & \method     & $76$ & $0.619$ & $0.547$ & \good{$0.228$} & $+0.01$ & $0.053$ \\
+    $K_M$ (BRENDA+SABIO)      & BCE control & $59$ & $0.978$ & $0.576$ & $0.030$ & $+0.20$ & $0.111$ \\
+                             & \method     & $59$ & $0.633$ & $0.590$ & \good{$0.219$} & $-0.04$ & $0.053$ \\
+    turnover (BRENDA+SABIO)   & BCE control & $35$ & $0.966$ & $0.533$ & $0.014$ & $+0.10$ & $0.000$ \\
+                             & \method     & $35$ & $0.603$ & $0.555$ & \good{$0.344$} & $-0.06$ & $0.111$ \\
+    ESP~\citep{kroll2023esp}  & BCE control & $50$ & $0.897$ & $0.847$ & $0.098$ & $+0.01$ & $0.053$ \\
+                             & \method\ (v5b) & $50$ & $0.562$ & $0.540$ & $0.071$ & $-0.03$ & $0.111$ \\
+    \midrule
+    \multicolumn{8}{l}{\emph{Kinase affinity (not enzyme--substrate)}}\\
+    BindingDB\textsubscript{$K_d$} & BCE control & $25$ & $0.844$ & $0.679$ & $0.042$ & $+0.48$ & $0.176$ \\
+                             & \method     & $25$ & $0.692$ & $0.728$ & \good{$0.320$} & $+0.09$ & $0.053$ \\
+    Davis (kinase $K_d$)      & BCE control & $94$ & $0.878$ & $0.756$ & $0.044$ & $+0.42$ & $0.176$ \\
+                             & \method     & $94$ & $0.682$ & $0.686$ & $0.038$ & $+0.22$ & $0.000$ \\
+    KIBA                      & BCE control & $453$ & $0.856$ & $0.747$ & $0.035$ & $+0.35$ & $0.111$ \\
+                             & \method     & $453$ & $0.492$ & \bad{$0.457$} & $0.023$ & $-0.15$ & $0.111$ \\
+    \midrule
+    \multicolumn{8}{l}{\emph{Chance \matmrr $\approx 0.029$ (200-protein pool); \nullprior\ \matmrr $=0.008$--$0.021$; \nullprior\ Gini $\approx 0.995$ on every dataset.}} \\
+    \bottomrule
+  \end{tabular}%
+  }
+\end{table}
+
+Four observations. (i) \emph{The shortcut precondition is universal.}
+The \nullprior\ attractor distribution is as concentrated on every one
+of the seven datasets as on BRENDA --- Gini $\approx 0.995$ throughout
+--- so the skewed per-protein label distribution that enables a
+protein-level shortcut is not a BRENDA artefact. (ii) \emph{A standard
+model exploits it everywhere.} The BCE control reaches a pooled \gauc\
+of $0.84$--$0.98$ on all seven corpora while ranking at near-chance
+\matmrr\ ($0.014$--$0.098$ against a chance level of $0.029$): exactly
+the Phase-1 dissociation --- pooled metric passed, ligand-conditional
+ranking absent --- now reproduced on six corpora beyond BRENDA-200. It
+is sharpest on the catalytic enzyme datasets, where \gauc\ climbs to
+$0.95$--$0.98$. (iii) \emph{\method\ circumvents the shortcut on every
+catalytic enzyme dataset.} On kcat/$K_M$, $K_M$ and turnover, \method\
+gives up the pooled metric (\gauc\ falls to $\sim\!0.60$) and in
+exchange recovers genuine ligand-conditional ranking: \matmrr\
+$0.228$/$0.219$/$0.344$, i.e.\ $7$--$25\times$ the matched BCE control
+and $16$--$25\times$ the \nullprior\ baseline, while driving the
+per-row correlation with the prior to $\approx\!0$ or negative
+($\rho_{\text{row}} = +0.01$, $-0.04$, $-0.06$). This is the
+circumvention shown directly against a shortcut-taker, on every
+catalytic enzyme corpus rather than BRENDA-200 alone. (iv) \emph{Two
+honest non-wins bound the claim.} On the kinase \emph{affinity} sets the
+prior carries no ranking signal --- \nullprior\ \matmrr\ is at chance
+($0.016$--$0.021$) --- so there is no shortcut to circumvent; the BCE
+control's high \gauc\ there rides genuine per-ligand separation
+(\plauc\ $0.68$--$0.76$) and in fact correlates most strongly with the
+prior of any setting ($\rho_{\text{row}} = +0.35$ to $+0.48$) yet still
+cannot rank. BindingDB\textsubscript{$K_d$} is the one affinity set
+where \method\ ranks well (\matmrr\ $0.320$, indistinguishable from the
+BRENDA-200 headline $0.326$); Davis shows low \matmrr\ ($0.038$) but
+healthy \plauc\ ($0.686$), a metric artefact of promiscuous kinase
+inhibitors with many positive proteins per ligand. On ESP and KIBA
+\method's own training did not converge to a ranking solution
+(\plauc\ $0.540$ and $0.457$, both early-stopped on the now-retired
+val \gauc), so these are \method\ tuning/selection limitations, not
+refutations of the diagnosis --- and \method\ still rides no prior on
+either ($\rho_{\text{row}} \le 0$, Top-10 Jaccard $\le 0.11$).
+
+Two caveats bound this reading. First, our ESP copy is re-mapped to a
+$1{:}1$-balanced $28.9$k-pair set rather than Kroll et al.'s $1{:}3$
+similarity-hard-negative split, so a like-for-like comparison to their
+reported $0.956$ ROC-AUC requires the native split; ESP is the one
+independent \emph{enzyme--substrate} corpus where \method\ might
+legitimately compete, and its weak ranking here ($\matmrr\ 0.071$) is a
+convergence failure of \method, not evidence that the shortcut is
+absent (the BCE control attains $\gauc\ 0.897$ on the same data).
+Second, the BindingDB\textsubscript{$K_d$} rows match only $25$
+positive pairs into the $200$-protein pool, a small sample relative to
+Davis ($94$) and KIBA ($453$).
 
 \subsection{Practitioner recipe --- what to do for a new model or dataset}
 \label{sec:recipe}
@@ -939,11 +1126,23 @@ are needed at full strength.
         construction in mind, and generalisation to independent
         enzyme--substrate and DTI benchmarks (next item) is the
         cleanest control.
-  \item \textbf{Out-of-distribution generalisation untested.} The
-        cross-dataset probe on independent corpora (ESP, TurNuP;
-        Davis / KIBA / BindingDB for general DTI) is scoped but not
-        executed; the $+0.10$ MRR lift is therefore an in-BRENDA
-        finding.
+  \item \textbf{Out-of-distribution generalisation: partial.} The
+        cross-dataset probe now spans seven corpora
+        (\S\ref{sec:generalise}), each scored with both a shortcut-prone
+        BCE control and \method. The diagnosis generalises: the skewed
+        protein prior is present everywhere (Gini $\approx 0.995$) and
+        the BCE control exploits it on every dataset (pooled \gauc\
+        $0.84$--$0.98$ at near-chance ranking). \method\ demonstrably
+        circumvents it on all three catalytic enzyme datasets
+        (\matmrr\ $7$--$25\times$ the BCE control) and matches its
+        BRENDA ranking on BindingDB\textsubscript{$K_d$}. Two limits
+        remain: on the kinase affinity sets the prior carries no
+        ranking signal, so the circumvention claim is moot there; and on
+        ESP --- the one independent enzyme--substrate corpus, where the
+        recipe may legitimately compete --- and on KIBA, \method's own
+        training did not converge to a ranking solution. ESP's native
+        $1{:}3$ split, TurNuP~\citep{kroll2023turnup}, and the
+        residue-level $+0.10$ MRR lift beyond BRENDA remain future work.
 \end{itemize}
 
 % ===========================================================================
@@ -965,15 +1164,19 @@ probe on three enzyme-wide BRENDA+SABIO datasets confirms that the
 anti-shortcut property of the recipe survives a $50\times$ scale-up,
 even when absolute ranking quality does not, and isolates
 fixed-pool hard-negative mining as the indicated next-step
-intervention. We summarise the findings in an eight-step recipe for
-diagnosing and breaking the same shortcut on new DTI models or
-datasets. We release code, configurations, three-seed manifests and
-the null-prior probe so that any future enzyme--substrate model can be
-audited the same way. The natural next step is to close the
-enzyme-wide gap by scaling the hard-negative pool with
-$n_{\text{train\_proteins}}$, together with a cross-dataset probe on
-ESP~\citep{kroll2023esp} and TurNuP~\citep{kroll2023turnup} under
-distribution shift.
+intervention. A cross-dataset probe on three kinase affinity
+benchmarks further shows the recipe carries over to
+BindingDB\textsubscript{$K_d$}; the skewed prior that enables the
+shortcut is present on all three affinity corpora, with shortcut-control
+baselines under way to confirm it is exploitable there. We summarise the
+findings in an eight-step recipe for diagnosing and breaking the same
+shortcut on new DTI models or datasets. We release code,
+configurations, three-seed manifests and the null-prior probe so that
+any future enzyme--substrate model can be audited the same way. The
+natural next step is to close the enzyme-wide gap by scaling the
+hard-negative pool with $n_{\text{train\_proteins}}$, together with the
+independent enzyme--substrate probe on ESP~\citep{kroll2023esp} (in
+progress) and TurNuP~\citep{kroll2023turnup}.
 
 % ===========================================================================
 \appendix

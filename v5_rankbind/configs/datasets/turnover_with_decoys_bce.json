@@ -1,0 +1,9 @@
+{
+  "extends": "turnover_with_decoys.json",
+  "name": "turnover_with_decoys_bce",
+  "description": "BCE shortcut-CONTROL on BRENDA+SABIO turnover (with decoys): Phase-1-style recipe (random sampler + BCE + MLP-concat head, no triplets). Contrast partner for the anti-shortcut hard-negative RankBind runs at enzyme-wide scale — establishes whether the protein-prior shortcut is takeable here (high pooled AUC + high Top-10 Jaccard vs null_prot_prior + low matrix MRR = shortcut taken).",
+  "sampler": { "type": "random" },
+  "loss": { "type": "bce", "bce_aux_weight": 1.0, "margin": 0.0 },
+  "triplet": { "n_negatives_per_positive": 0 },
+  "model": { "head": "mlp_concat" }
+}
