@@ -1,0 +1,13 @@
+{
+  "extends": "esp_attn_conv.json",
+  "name": "esp_native",
+  "description": "ESP on Kroll et al.'s NATIVE phylogenetic split (split column: 23264 train / 5636 test, 1:1 balanced) for a like-for-like comparison to their reported test ROC-AUC ~0.956. Differs from esp_attn_conv only in: (1) data.split_mode='native' (use the dataset's own train/test instead of the project protein-split), and (2) early-stop on val_global_auc, because here pooled ROC-AUC IS the comparison target (not a shortcut to avoid) -- this is the one benchmark-matching run where global AUC is the headline. The converged hard_pool_size=4000 (~43% of the 9259 native train proteins) is inherited. NB: our ESP copy dropped ~20% of pairs in CHEBI->SMILES mapping, so this is close-to but not identical-to Kroll's exact set; report with that caveat.",
+
+  "data": {
+    "split_mode": "native"
+  },
+
+  "train": {
+    "early_stop_metric": "val_global_auc"
+  }
+}

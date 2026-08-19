@@ -116,3 +116,60 @@ def matrix_ranking_metrics(
         "hit_at_10":                 float((ranks < 10).mean()),
         "n_positive_pairs_matched":  int(len(ranks)),
     }
+
+
+def matrix_per_ligand_auc(
+    score_matrix: np.ndarray,
+    lig_list: list[str],
+    prot_list: list[str],
+    positive_pairs: list[tuple[str, str]],
+) -> dict:
+    """Per-ligand AUC computed on the full 200×200 score matrix instead of
+    the test-pair table.
+
+    The strict ``per_ligand_auc`` only counts ligands that have BOTH a
+    positive and a negative *test pair*; under the protein-based split that
+    is ~4 ligands on BRENDA — statistically empty. Here every ligand row of
+    the matrix is scored against all ``n_prot`` proteins: a column is a
+    positive iff that (ligand, protein) pair is in ``positive_pairs`` (the
+    same held-out positive set used by ``matrix_ranking_metrics``), every
+    other column is a negative. A ligand counts if its row has ≥1 positive
+    and ≥1 negative — which is true for every ligand with an observed
+    binder in the pool, lifting n from ~4 to the number of distinct
+    positive ligands (~50 on BRENDA, hundreds on ESP/turnover).
+
+    Caveat (shared with matrix_ranking_metrics): columns that are training
+    positives for the same ligand are treated as negatives, so this is a
+    *conservative* estimate — it can only understate per-ligand AUC, never
+    inflate it.
+
+    Returns {matrix_per_ligand_auc, n_ligands_counted, n_positive_cells}.
+    """
+    lig_to_row = {s: i for i, s in enumerate(lig_list)}
+    prot_to_col = {p: j for j, p in enumerate(prot_list)}
+    n_prot = len(prot_list)
+
+    # positive column-indices per ligand row, restricted to the matrix axes
+    pos_cols: dict[int, set[int]] = defaultdict(set)
+    for lig, prot in positive_pairs:
+        if lig in lig_to_row and prot in prot_to_col:
+            pos_cols[lig_to_row[lig]].add(prot_to_col[prot])
+
+    aucs = []
+    n_pos_cells = 0
+    for i, cols in pos_cols.items():
+        if not cols or len(cols) >= n_prot:
+            continue  # need ≥1 positive and ≥1 negative column
+        labels = np.zeros(n_prot, dtype=np.int64)
+        labels[list(cols)] = 1
+        n_pos_cells += len(cols)
+        try:
+            aucs.append(roc_auc_score(labels, score_matrix[i]))
+        except ValueError:
+            continue
+
+    return {
+        "matrix_per_ligand_auc": float(np.mean(aucs)) if aucs else float("nan"),
+        "n_ligands_counted":     int(len(aucs)),
+        "n_positive_cells":      int(n_pos_cells),
+    }

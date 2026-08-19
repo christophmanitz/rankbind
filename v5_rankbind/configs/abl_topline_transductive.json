@@ -1,0 +1,8 @@
+{
+  "extends": "default.json",
+  "name": "abl_topline_transductive",
+  "description": "CEILING PROBE (not a method run). Identical to the v4 default headline config (bilinear head, mean-pool ESM2, hard-negative mining) EXCEPT the split: data.split_mode='random' replaces the protein-disjoint split with a transductive pair-level split (same proteins may appear in train and test). This upper-bounds the extractable ligand-conditional signal under per-protein memorisation. Interpretation: matrix-MRR here vs the protein-split headline 0.326 isolates how much of the modest absolute ranking is the generalisation burden (model-limited, headroom for v6) vs an intrinsic data ceiling (data-limited, v6 cannot rescue it). Same seed=42 and val/test fractions so protein disjointness is the only changed variable.",
+  "data": {
+    "split_mode": "random"
+  }
+}

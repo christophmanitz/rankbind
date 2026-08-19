@@ -17,8 +17,10 @@ training is already long enough without the 200×200 sweep.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import math
+import os
 import sys
 import time
 from pathlib import Path
@@ -38,12 +40,29 @@ from v5_rankbind.run_manifest import (
     RunManifest, load_config, set_deterministic_seeds
 )
 from v5_rankbind.data import (
-    ensure_chemberta_cache, build_datasets, collate_pointwise
+    ensure_chemberta_cache, ensure_chemberta_token_cache,
+    build_datasets, collate_pointwise
 )
 from v5_rankbind.sampler import ProteinBalancedSampler, TripletCollator
-from v5_rankbind.model import RankBind
+from v5_rankbind.model import RankBind, FIELD_HEADS
 from v5_rankbind.loss import RankBindLoss
 from v5_rankbind.metrics import per_ligand_auc, global_metrics
+
+
+def _graph_to_device(graph: dict | None, device) -> dict | None:
+    """Move a batched graph dict's tensors to `device` (no-op for None)."""
+    if graph is None:
+        return None
+    return {k: (v.to(device) if torch.is_tensor(v) else v) for k, v in graph.items()}
+
+
+def autocast_ctx(use_bf16: bool):
+    """bfloat16 autocast for the model FORWARD only. bf16 has fp32 exponent
+    range, so NO GradScaler is needed (or correct). Returns a nullcontext when
+    disabled so callers stay branch-free. Loss + backward run OUTSIDE this."""
+    if use_bf16:
+        return torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+    return contextlib.nullcontext()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -74,13 +93,24 @@ def make_train_loader(
     else:
         collate = collate_pointwise
 
+    # Graph-head collation (gearbind) is CPU-heavy — loading structure/ligand
+    # graphs + building the gather-over-Kmax neighbour format per batch. With
+    # num_workers=0 the GPU stalls on it (~44% util observed). Pipeline it across
+    # workers. persistent_workers MUST stay False so each epoch re-forks from the
+    # main-process collator, picking up the latest hard-neg scores set by
+    # refresh_scores (which mutates the same collator object on the main process).
+    n_workers = int(cfg["train"].get("num_workers",
+                                     min(4, (os.cpu_count() or 1))))
     loader = DataLoader(
         train_ds,
         batch_size=cfg["train"]["batch_size_ligands"],
         sampler=sampler,
         shuffle=shuffle if sampler is None else False,
         collate_fn=collate,
-        num_workers=0,
+        num_workers=n_workers,
+        pin_memory=(n_workers > 0),
+        persistent_workers=False,
+        prefetch_factor=(2 if n_workers > 0 else None),
         drop_last=False,
     )
     return loader, sampler
@@ -100,6 +130,7 @@ def make_eval_loader(ds, batch_size: int) -> DataLoader:
 @torch.no_grad()
 def evaluate(
     model: RankBind, loader: DataLoader, device: torch.device,
+    use_bf16: bool = False,
 ) -> tuple[pd.DataFrame, dict]:
     model.eval()
     rows = []
@@ -109,7 +140,22 @@ def evaluate(
         prot_mask = batch.get("prot_mask")
         if prot_mask is not None:
             prot_mask = prot_mask.to(device)
-        score = model.score_pairs(lig, prot, prot_mask).float().cpu().numpy()
+        if model.head_type in FIELD_HEADS:
+            # gearbind carries graphs + no lig_mask; deltafield carries lig_mask.
+            lig_mask = batch.get("lig_mask")
+            if lig_mask is not None:
+                lig_mask = lig_mask.to(device)
+            pg = _graph_to_device(batch.get("prot_graph"), device)
+            lg = _graph_to_device(batch.get("lig_graph"), device)
+            with autocast_ctx(use_bf16):
+                score = model.score_pairs_field(
+                    lig, lig_mask, prot, prot_mask, prot_graph=pg, lig_graph=lg
+                )
+            score = score.float().cpu().numpy()
+        else:
+            with autocast_ctx(use_bf16):
+                score = model.score_pairs(lig, prot, prot_mask)
+            score = score.float().cpu().numpy()
         for s, uni, sc, lb in zip(batch["smiles"], batch["uniprot"], score, batch["label"]):
             rows.append({"smiles": s, "uniprot": uni, "score": float(sc), "label": int(lb)})
     df = pd.DataFrame(rows)
@@ -138,6 +184,7 @@ def train_epoch_margin(
     scheduler,
     device: torch.device,
     grad_clip: float,
+    use_bf16: bool = False,
 ) -> dict:
     model.train()
     accum = {"loss_total": 0.0, "n": 0, "kept_ratio": [],
@@ -156,7 +203,22 @@ def train_epoch_margin(
             pos_mask = pos_mask.to(device)
         if neg_mask is not None:
             neg_mask = neg_mask.to(device)
-        pos_s, neg_s = model.score_triplet(lig, pos, neg, pos_mask, neg_mask)
+        if model.head_type in FIELD_HEADS:
+            # gearbind threads structure/ligand graphs; deltafield does not.
+            lig_mask = batch.get("lig_mask")
+            if lig_mask is not None:
+                lig_mask = lig_mask.to(device)
+            pg = _graph_to_device(batch.get("prot_graph"), device)
+            npg = _graph_to_device(batch.get("neg_prot_graph"), device)
+            lg = _graph_to_device(batch.get("lig_graph"), device)
+            with autocast_ctx(use_bf16):
+                pos_s, neg_s, _pos_d, _neg_d = model.score_triplet_field(
+                    lig, lig_mask, pos, pos_mask, neg, neg_mask,
+                    prot_graph=pg, neg_prot_graph=npg, lig_graph=lg)
+        else:
+            with autocast_ctx(use_bf16):
+                pos_s, neg_s = model.score_triplet(lig, pos, neg, pos_mask, neg_mask)
+        # Loss + backward OUTSIDE autocast (standard bf16 pattern; no GradScaler).
         loss, parts = loss_fn.compute_margin(pos_s, neg_s)
 
         opt.zero_grad(set_to_none=True)
@@ -194,6 +256,7 @@ def train_epoch_bce(
     scheduler,
     device: torch.device,
     grad_clip: float,
+    use_bf16: bool = False,
 ) -> dict:
     model.train()
     total = 0.0; n = 0
@@ -204,7 +267,9 @@ def train_epoch_bce(
         if prot_mask is not None:
             prot_mask = prot_mask.to(device)
         lab = batch["label"].to(device)
-        score = model.score_pairs(lig, prot, prot_mask)
+        with autocast_ctx(use_bf16):
+            score = model.score_pairs(lig, prot, prot_mask)
+        # Loss + backward OUTSIDE autocast (standard bf16 pattern; no GradScaler).
         loss, parts = loss_fn.compute_bce(score, lab)
 
         opt.zero_grad(set_to_none=True)
@@ -271,6 +336,20 @@ def main() -> None:
     )
     print(f"[chemberta] cache ready ({len(all_smiles)} SMILES, {time.time()-t0:.1f}s)")
 
+    # Per-token ChemBERTa cache for the DeltaField head (ligand_encoder='per_token').
+    # Lives on /work2 per config (data.chemberta_token_cache). Idempotent.
+    if cfg["model"].get("ligand_encoder") == "per_token":
+        tcd = cfg["data"]["chemberta_token_cache"]
+        token_cache_dir = Path(tcd) if Path(tcd).is_absolute() else PROJECT_ROOT / tcd
+        t1 = time.time()
+        ensure_chemberta_token_cache(
+            all_smiles, token_cache_dir,
+            device=("cuda" if torch.cuda.is_available() else "cpu"),
+            max_length=cfg["model"].get("max_ligand_tokens", 128),
+        )
+        print(f"[chemberta] per-token cache ready at {token_cache_dir} "
+              f"({len(all_smiles)} SMILES, {time.time()-t1:.1f}s)")
+
     # ── Data ──────────────────────────────────────────────────────────────
     train_ds, val_ds, test_ds, split_stats = build_datasets(cfg, chemberta_cache_dir)
     manifest.record_split(**split_stats)
@@ -282,6 +361,14 @@ def main() -> None:
     manifest.record_model(**model.count_parameters())
     print(f"[model] head={cfg['model']['head']} "
           f"trainable={model.count_parameters()['n_parameters_trainable']:,}")
+
+    # ── Memory-saving knobs (declared in cfg; gated on CUDA) ─────────────────
+    use_bf16 = (cfg["train"].get("precision") == "bf16" and device.type == "cuda")
+    use_ckpt = bool(cfg["train"].get("grad_checkpointing", False))
+    model.set_checkpointing(use_ckpt)
+    manifest.note(f"precision={'bf16' if use_bf16 else 'fp32'} "
+                  f"grad_checkpointing={use_ckpt}")
+    print(f"[mem] bf16_autocast={use_bf16} grad_checkpointing={use_ckpt}")
 
     # ── Loss / loaders ────────────────────────────────────────────────────
     loss_fn = RankBindLoss(cfg["loss"])
@@ -363,8 +450,9 @@ def main() -> None:
         train_stats = train_step(
             model, train_loader, loss_fn, opt, scheduler, device,
             grad_clip=cfg["train"]["grad_clip"],
+            use_bf16=use_bf16,
         )
-        val_df, val_metrics = evaluate(model, val_loader, device)
+        val_df, val_metrics = evaluate(model, val_loader, device, use_bf16=use_bf16)
         wall = time.time() - t_start
         lr_now = opt.param_groups[0]["lr"]
 

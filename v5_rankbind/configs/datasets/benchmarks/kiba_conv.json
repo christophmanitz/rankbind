@@ -1,0 +1,14 @@
+{
+  "extends": "kiba.json",
+  "name": "kiba_conv",
+  "description": "KIBA convergence re-run (§8.3 non-convergence fix). Three principled changes vs kiba.json: (1) ligand-conditional early-stop on val_per_lig_auc instead of the retired val_global_auc -- KIBA's ~2k-ligand val split makes per-ligand AUC well-sampled (the n=2 noise caveat applies only to BRENDA-200); (2) hard_pool_size 50 -> 120, ~75% of KIBA's ~160 train proteins (50 was ~31%, below the recipe's >=50% coverage rule); (3) longer patience/min-epochs. Original run: per-lig AUC 0.457, pos>maxneg plateaued at 0.57.",
+  "triplet": {
+    "hard_pool_size": 120
+  },
+  "train": {
+    "epochs": 60,
+    "early_stop_metric": "val_per_lig_auc",
+    "early_stop_patience": 15,
+    "early_stop_min_epochs": 25
+  }
+}

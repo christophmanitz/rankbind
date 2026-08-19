@@ -109,12 +109,19 @@ class GraphDTADataset(torch.utils.data.Dataset):
         self.sequences = config.load_sequences()
         pairs = config.load_pairs()
 
+        # O(1) idx lookup instead of an O(N) DataFrame scan per index (the latter
+        # is O(N*M) and crippling at turnover scale, ~42k rows). Featurization is
+        # memoised per SMILES / per uniprot since both repeat heavily.
+        by_idx = pairs.set_index('idx')
+        idx_index = by_idx.index
+        graph_cache: dict = {}
+        seqid_cache: dict = {}
+
         self.items = []
         for idx in indices:
-            row = pairs[pairs['idx'] == idx]
-            if row.empty:
+            if idx not in idx_index:
                 continue
-            row = row.iloc[0]
+            row = by_idx.loc[idx]
             uniprot = row['uniprot']
             smiles = row['substrate_smiles']
             label = row['label']
@@ -122,15 +129,31 @@ class GraphDTADataset(torch.utils.data.Dataset):
             if uniprot not in self.sequences:
                 continue
 
-            graph = smile_to_graph(smiles)
+            if smiles not in graph_cache:
+                graph_cache[smiles] = smile_to_graph(smiles)
+            graph = graph_cache[smiles]
             if graph is None:
                 continue
 
-            seq_ids = seq_to_ids(self.sequences[uniprot])
+            seq_ids = seqid_cache.get(uniprot)
+            if seq_ids is None:
+                seq_ids = seq_to_ids(self.sequences[uniprot])
+                seqid_cache[uniprot] = seq_ids
             self.items.append((graph, seq_ids, float(label), smiles, uniprot))
 
     def __len__(self):
         return len(self.items)
+
+    # Accessors for the anti-shortcut samplers (ProteinBalancedSampler,
+    # NegativeSelector). items[i] == (graph, seq_ids, label, smiles, uniprot).
+    def smiles_at(self, idx):
+        return self.items[idx][3]
+
+    def protein_at(self, idx):
+        return self.items[idx][4]
+
+    def label_at(self, idx):
+        return int(self.items[idx][2])
 
     def __getitem__(self, idx):
         graph, seq_ids, label, smiles, uniprot = self.items[idx]

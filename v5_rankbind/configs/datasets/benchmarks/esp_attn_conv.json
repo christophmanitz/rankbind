@@ -1,0 +1,14 @@
+{
+  "extends": "esp_attn.json",
+  "name": "esp_attn_conv",
+  "description": "ESP convergence re-run (§8.3 non-convergence fix). The v4/v5b hard_pool_size=50 covers <1% of ESP's ~8k train proteins -> near-random negatives, the recipe's documented failure mode. Changes vs esp_attn.json: (1) hard_pool_size 50 -> 4000, ~50% of train proteins (direct analogy to km @ ~9.5k proteins peaking at hp3400); (2) ligand-conditional early-stop on val_per_lig_auc instead of the retired val_global_auc (ESP's ~1.1k-ligand val split is well-sampled); (3) longer patience/min-epochs. Original run: per-lig AUC 0.540, early-stopped ~epoch 20 on val_global_auc.",
+  "triplet": {
+    "hard_pool_size": 4000
+  },
+  "train": {
+    "epochs": 45,
+    "early_stop_metric": "val_per_lig_auc",
+    "early_stop_patience": 12,
+    "early_stop_min_epochs": 22
+  }
+}

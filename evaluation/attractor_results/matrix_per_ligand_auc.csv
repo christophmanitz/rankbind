@@ -1,0 +1,8 @@
+run,strict_per_lig_auc,strict_n,matrix_per_lig_auc,matrix_n,n_positive_cells
+20260423-112928_012a2695c2_default_v4,0.75,4,0.8912,30,34
+20260427-121113_1746525d51_abl_attn_pool_v5b_s42,0.5,4,0.9296,30,34
+20260610-121458_9b1c577943_abl_deltafield_v6_deltafield,0.5,4,0.9259,30,34
+20260610-120519_9b1c577943_esp_attn_conv_conv_esp,0.8866,384,0.9547,35,50
+20260610-113703_be0edd20e3_kiba_conv_conv_kiba,0.5875,986,0.6073,116,453
+20260609-141311_1746525d51_bindingdb_kd_bench_bindingdb_v4,0.7281,72,0.9212,15,25
+20260610-130253_9b1c577943_abl_topline_transductive_topline,0.5,2,0.9428,48,58

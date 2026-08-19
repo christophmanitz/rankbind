@@ -1,0 +1,48 @@
+{
+  "extends": "default.json",
+  "name": "abl_gearbind",
+  "description": "GearBind-RankBind v7 (docs/V7_STRUCTURE_GNN_PLAN.md): a relational residue contact-graph GNN over AlphaFold structures (3 relations: self+backbone / <8A contact / kNN16) + a 3D-conformer atom-graph GNN over the ligand (bond / spatial<4.5A / spatial-kNN8), both feeding the v6 DeltaFieldHead verbatim. The score is read ONLY from the difference field D = H_coupled - H_free (prop_layers=0), so the zero-field theorem (mask cross edges => D==0 => score==b0) is inherited unchanged. Requires per-residue ESM2 (attn_pool) + on-disk structure_graphs + ligand_conformer caches. P2 run defaults: B=16, k=4, hard mining, bf16, grad checkpointing.",
+  "model": {
+    "head": "gearbind",
+    "protein_encoder": "attn_pool",
+    "d_lig": 128,
+    "d_prot": 128,
+    "lig_input_dim": 384,
+    "prot_input_dim": 1280,
+    "max_residues": 1024,
+    "dropout": 0.0,
+    "df_n_blocks": 2,
+    "df_n_heads": 4,
+    "df_ffn_mult": 4,
+    "df_prop_layers": 0,
+    "df_dropout": 0.0,
+    "gnn_layers_prot": 4,
+    "gnn_layers_lig": 3
+  },
+  "data": {
+    "structure_dir": "reactionDataFiltering/data/interim/structure_graphs_shared",
+    "ligand_conformer_dir": "/work2/zw93onug-rankbind_bench/ligand_conformer_cache"
+  },
+  "loss": {
+    "lambda_sparse": 0.0,
+    "lambda_tv": 0.0,
+    "lambda_neg": 0.0
+  },
+  "triplet": {
+    "n_negatives_per_positive": 4,
+    "negative_sampling": "hard",
+    "hard_pool_size": 50
+  },
+  "train": {
+    "batch_size_ligands": 16,
+    "grad_checkpointing": true,
+    "precision": "bf16",
+    "num_workers": 3
+  },
+  "_notes": {
+    "zero_field_invariant": "prop_layers=0 keeps the exact invariant; tests/test_deltafield.py::test_zero_field_invariant_gearbind asserts score==b0 across distinct proteins with real 3D graphs.",
+    "capacity": "two GNNs (JK-concat) push trainable params above the 627k bilinear default; count_parameters() printed to the manifest, capacity-matched comparator chosen at P5 (do not assert 'matched ~627k' until run).",
+    "ligand_node_input": "atom_feat[39] concatenated with mean-pool ChemBERTa[384] broadcast per atom => 423-d; gearbind reads the ligand from lig_graph (ligand_encoder stays mean_pool only to supply the ChemBERTa context vector).",
+    "memory": "OOM risk is the hard-neg triplet path (B + B*k forward_field passes); pinned B=16, k=4, df_n_blocks=2, bf16, grad checkpointing per the plan."
+  }
+}

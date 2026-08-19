@@ -1,0 +1,28 @@
+{
+  "extends": "datasets/km_with_decoys.json",
+  "name": "abl_attn_pool_km",
+  "description": "v5b residue attention-pool (RankBind's best BRENDA-200 config, MRR 0.427) transferred to the BRENDA+SABIO Km decoy-augmented dataset (~9.5k UniProts, the largest of the three). Tests whether the BEST model generalises beyond BRENDA-200, not just the v4 mean-pool recipe. Model block copied verbatim from abl_attn_pool.json (learned single-head attention pool over per-residue ESM2 + bilinear head rank=128); data block inherited from datasets/km_with_decoys.json. hard_pool_size scaled to 3400 (~50% of train proteins), matching the v4 km sweep peak in paper Table tab:hpsweep.",
+  "model": {
+    "head": "bilinear",
+    "d_lig": 256,
+    "d_prot": 256,
+    "bilinear_rank": 128,
+    "mlp_hidden": 128,
+    "lig_input_dim": 384,
+    "prot_input_dim": 1280,
+    "dropout": 0.0,
+    "protein_encoder": "attn_pool",
+    "max_residues": 1024,
+    "encoders": {
+      "protein": "esm2_residue_attn_pool_frozen",
+      "ligand":  "chemberta_mean_pool_frozen"
+    }
+  },
+  "triplet": {
+    "hard_pool_size": 3400
+  },
+  "_notes": {
+    "role": "km-scale generalisation test of the v5b attn_pool head (best model). Largest dataset (~9.5k proteins) -> needs 12h walltime. Single-seed (42) like the v4 transfer runs.",
+    "hard_pool_size_rationale": "3400 ~= 50% of the km train-protein pool; mirrors the v4 sweep peak for this dataset (paper Table tab:hpsweep)."
+  }
+}

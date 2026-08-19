@@ -1,0 +1,8 @@
+model,family,strict_per_lig_auc,strict_n,matrix_per_lig_auc,matrix_n
+DrugBAN,baseline,0.375,4,0.4332,30
+GEMS,baseline,0.25,4,0.5139,30
+MolTrans,baseline,0.5,4,0.4695,30
+GraphDTA,baseline,0.625,4,0.5327,30
+RankBind v4 (hard-neg),rankbind,0.75,4,0.8912,30
+RankBind v5b (attn-pool),rankbind,0.5,4,0.9296,30
+RankBind v6 (DeltaField),rankbind,0.5,4,0.9259,30

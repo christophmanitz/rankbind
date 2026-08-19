@@ -1,0 +1,13 @@
+{
+  "extends": "abl_deltafield_turnover.json",
+  "name": "abl_deltafield_turnover_hard",
+  "description": "DeltaField-aware HARD-NEGATIVE run on the turnover dataset. Identical to abl_deltafield_turnover.json but negative_sampling='hard': at each margin epoch start the collator scores hardness by MODEL-SPACE protein-protein similarity (cosine between mask-aware-mean model.prot residue embeddings; the deltafield head has no pooled scoring path, so an exact score matrix is infeasible at this scale). For a positive ligand whose binders are P+, the hard pool is the proteins most similar to P+ in the trained embedding space.",
+  "triplet": {
+    "negative_sampling": "hard",
+    "hard_pool_size": 200
+  },
+  "_notes": {
+    "hard_pool_size_rationale": "200 ~= 5% of the ~3970 turnover train proteins. The null_prior_probe finding showed hard_pool_size=50 is too small at this scale (top-50 is <1.5% of the pool, over-concentrating negatives on a handful of confusers).",
+    "hardness_signal": "model-space protein-similarity (cosine of mask-aware-mean model.prot residue embeddings); see refresh_scores deltafield branch in v5_rankbind/sampler.py."
+  }
+}

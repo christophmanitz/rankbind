@@ -1,0 +1,5 @@
+model,strict_per_lig_auc,strict_n,matrix_per_lig_auc,matrix_n,n_positive_cells
+DrugBAN,0.375,4,0.4332,30,34
+GraphDTA,0.625,4,0.5327,30,34
+MolTrans,0.5,4,0.4695,30,34
+GEMS,0.25,4,0.5139,30,34

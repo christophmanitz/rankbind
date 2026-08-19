@@ -1,0 +1,39 @@
+{
+  "extends": "datasets/turnover_with_decoys.json",
+  "name": "abl_deltafield_turnover",
+  "description": "DeltaField-RankBind on the BRENDA+SABIO turnover_number (kcat) decoy-augmented dataset. BASELINE negatives (cross_protein_implicit). One weight-shared bipartite ESM2-residue x ChemBERTa-atom transformer run twice (free vs coupled mask); the binding score is read ONLY from the difference field D = H_coupled - H_free, so the protein-prior shortcut is a structural zero of the score. Requires per-token ChemBERTa + per-residue ESM2 (attn_pool). Model block copied from abl_deltafield.json; data block inherited from datasets/turnover_with_decoys.json.",
+  "model": {
+    "head": "deltafield",
+    "protein_encoder": "attn_pool",
+    "ligand_encoder": "per_token",
+    "d_lig": 128,
+    "d_prot": 128,
+    "lig_input_dim": 384,
+    "prot_input_dim": 1280,
+    "max_residues": 1024,
+    "max_ligand_tokens": 128,
+    "dropout": 0.0,
+    "df_n_blocks": 2,
+    "df_n_heads": 4,
+    "df_ffn_mult": 4,
+    "df_prop_layers": 0,
+    "df_dropout": 0.0
+  },
+  "data": {
+    "chemberta_token_cache": "/work2/zw93onug-rankbind_bench/chemberta_token_cache"
+  },
+  "loss": {
+    "lambda_sparse": 0.0,
+    "lambda_tv": 0.0,
+    "lambda_neg": 0.0
+  },
+  "triplet": {
+    "negative_sampling": "cross_protein_implicit"
+  },
+  "_notes": {
+    "role": "Turnover-scale baseline for the deltafield head; the hard-negative variant is abl_deltafield_turnover_hard.json.",
+    "matched_capacity": "d=128 -> ~650k trainable, vs bilinear default 627k.",
+    "zero_field_invariant": "prop_layers=0 keeps the exact invariant; see v5_rankbind/tests/test_deltafield.py.",
+    "storage": "per-token ChemBERTa cache lives on /work2 (rankbind_bench workspace); ESM2 per-residue store stays on the home shared store (loader follows symlinks)."
+  }
+}

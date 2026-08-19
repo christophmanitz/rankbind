@@ -30,7 +30,7 @@ import numpy as np
 import torch
 from torch.utils.data import Sampler
 
-from .data import RankBindDataset, _pad_residues
+from .data import RankBindDataset, _pad_residues, collate_graph_list
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -220,6 +220,9 @@ class TripletCollator:
         self.hard_pool_size = int(hard_pool_size)
         self.use_hard = (negative_sampling == "hard")
         self.protein_encoder = getattr(train_dataset, "protein_encoder", "mean_pool")
+        self.ligand_encoder = getattr(train_dataset, "ligand_encoder", "mean_pool")
+        # gearbind (v7): also emit batched structure + 3D-ligand graphs.
+        self.load_graphs = getattr(train_dataset, "load_graphs", False)
         if negative_sampling not in ("cross_protein_implicit", "hard"):
             raise ValueError(
                 f"Unknown negative_sampling={negative_sampling!r}; "
@@ -260,6 +263,7 @@ class TripletCollator:
         self._lig_emb_cache: torch.Tensor | None = None   # [N_lig, D_lig]
         self._prot_emb_cache = None  # mean_pool: [N_prot, D]; attn_pool: list[Tensor]
         self._prot_lens_cache: list[int] | None = None    # attn_pool only
+        self._prot_graph_cache: list[dict] | None = None  # gearbind only (static)
         self._scores: np.ndarray | None = None            # [N_lig, N_prot]
 
     # ── hard-negative score cache ────────────────────────────────────────
@@ -278,9 +282,132 @@ class TripletCollator:
         For attn_pool encoder: per-residue tensors live on CPU; we encode them
         chunked on GPU through `model.encode_protein` to obtain `gP_all
         [N_prot, d_prot]`, then score against ligands as before.
+
+        DeltaField head: there is no pooled `model.head(fL, gP)` path — scoring
+        only happens via the full coupled `forward_field` over per-token
+        sequences, so an exact (N_lig × N_prot) score matrix would cost
+        O(N_lig·N_prot) coupled transformer forwards (infeasible at turnover
+        scale: ~5.7k proteins). For the FIELD_HEADS we therefore use a cheaper
+        *model-space protein-similarity* hardness signal: for a positive ligand
+        whose true binder(s) are P+, the hard negatives are the proteins whose
+        trained protein embedding is most similar to P+. The embedding is
+        ligand-independent and static per epoch, but its source differs by head:
+
+          * deltafield → mask-aware mean over residues of `model.prot(residues)`
+            (the ProteinProjector — the component actually trained in the field
+            path, model.py:forward_field). We deliberately bypass
+            `model.encode_protein` / `model.attn_pool`: in the deltafield path
+            the attn_pool is instantiated but NEVER trained, so its pooled
+            embedding is a random projection and would give meaningless
+            similarity.
+          * gearbind → `model.prot` is NEVER touched by the gearbind path; its
+            trained protein encoder is `model.head.prot_in` + `model.head.prot_gnn`.
+            We therefore take the mask-aware mean over residues of the GNN
+            free-pass output `U_res = prot_gnn(prot_in(esm2_residues), graph)`.
+            This is the free pass only (no ligand, no cross-coupling), so it is
+            static per epoch and is the correct protein-identity signal.
         """
         if not self.use_hard:
             return {"refreshed": False}
+
+        # ── Field-head branch: protein-similarity hardness (returns early) ───
+        # FIELD_HEADS (deltafield / gearbind) have no pooled model.head(fL, gP)
+        # path, so an exact score matrix is infeasible. Both fall back to a cheap
+        # model-space protein-similarity signal, but from the head-specific
+        # trained protein encoder (deltafield → model.prot mean-pool; gearbind →
+        # GNN free-pass residue mean-pool — model.prot is untrained for gearbind).
+        from .model import FIELD_HEADS  # local import avoids a cycle at import time
+        head_type = getattr(model, "head_type", None)
+        if head_type in FIELD_HEADS:
+            # Build the per-residue protein cache once (same source as the
+            # attn_pool branch below). protein_encoder is "attn_pool" for both
+            # field heads, so protein_emb_at returns [L_i, D_in] CPU tensors.
+            if self._prot_emb_cache is None:
+                prot_residues = [self.ds.protein_emb_at(self._prot_to_idx[u])
+                                 for u in self._all_proteins]
+                self._prot_emb_cache = prot_residues  # type: ignore[assignment]
+                self._prot_lens_cache = [int(t.shape[0]) for t in prot_residues]
+
+            was_training = model.training
+            model.eval()
+            n_prot = len(self._prot_emb_cache)
+            gP_chunks = []
+
+            if head_type == "gearbind":
+                # Cache each train protein's structure graph once — static across
+                # the run (aligned 1:1 to the cached ESM2 length L_i, so the graph
+                # node axis equals the residue axis used by _pad_residues).
+                if self._prot_graph_cache is None:
+                    self._prot_graph_cache = [
+                        self.ds.load_structure(u, int(self._prot_lens_cache[i]))
+                        for i, u in enumerate(self._all_proteins)
+                    ]
+                for s in range(0, n_prot, prot_chunk):
+                    e = min(s + prot_chunk, n_prot)
+                    chunk_resi = self._prot_emb_cache[s:e]
+                    chunk_lens = self._prot_lens_cache[s:e]
+                    padded, mask = _pad_residues(
+                        [r.to(torch.float32) for r in chunk_resi], chunk_lens
+                    )
+                    padded = padded.to(device)           # [chunk, L, D_in]
+                    mask = mask.to(device)               # [chunk, L]
+                    # collate pads the node axis to max(chunk_lens) == L (each
+                    # graph's n_res == its ESM2 length), so node_mask aligns.
+                    graph = collate_graph_list(
+                        self._prot_graph_cache[s:e],
+                        has_seqsep=True, node_feat_keys=["plddt"])
+                    graph = {k: (v.to(device) if torch.is_tensor(v) else v)
+                             for k, v in graph.items()}
+                    h0 = model.head.prot_in(padded)              # [chunk, L, d]
+                    u = model.head.prot_gnn(h0, graph)           # [chunk, L, d]
+                    msum = mask.unsqueeze(-1).to(u.dtype)        # [chunk, L, 1]
+                    gP = (u * msum).sum(1) / mask.sum(1, keepdim=True).clamp(min=1)
+                    gP_chunks.append(gP.float().cpu())           # [chunk, d]
+                mode = "gearbind_gnn_freepass"
+            else:  # deltafield: ProteinProjector mean-pool (unchanged)
+                for s in range(0, n_prot, prot_chunk):
+                    e = min(s + prot_chunk, n_prot)
+                    chunk_resi = self._prot_emb_cache[s:e]
+                    chunk_lens = self._prot_lens_cache[s:e]
+                    padded, mask = _pad_residues(
+                        [r.to(torch.float32) for r in chunk_resi], chunk_lens
+                    )
+                    padded = padded.to(device)           # [chunk, L, D_in]
+                    mask = mask.to(device)               # [chunk, L]
+                    u = model.prot(padded)               # [chunk, L, d] (trained)
+                    msum = mask.unsqueeze(-1).to(u.dtype)    # [chunk, L, 1]
+                    gP = (u * msum).sum(1) / mask.sum(1, keepdim=True).clamp(min=1)
+                    gP_chunks.append(gP.float().cpu())       # [chunk, d]
+                mode = "deltafield_protein_sim"
+
+            gP_all = torch.cat(gP_chunks, dim=0)         # [N_prot, d] on CPU
+            if was_training:
+                model.train()
+
+            gP_norm = gP_all / gP_all.norm(dim=1, keepdim=True).clamp(min=1e-8)
+
+            # Per-ligand positive-protein centroid in model embedding space.
+            n_lig = len(self._row_to_smi)
+            d = gP_norm.shape[1]
+            C = torch.zeros(n_lig, d, dtype=torch.float32)
+            for r, smi in enumerate(self._row_to_smi):
+                cols = [self._prot_to_col[p]
+                        for p in self._pos_prots_by_smi.get(smi, set())
+                        if p in self._prot_to_col]
+                if not cols:
+                    # No in-frame positive protein (shouldn't happen for train
+                    # anchors); leave row as zeros -> all-equal scores -> the
+                    # top-M fallback in _sample_negs_for_anchor still returns a
+                    # valid pool.
+                    continue
+                centroid = gP_norm[cols].mean(dim=0)
+                C[r] = centroid / centroid.norm().clamp(min=1e-8)
+
+            # Cosine similarity; higher = more similar = harder, matching the
+            # existing top-M selection semantics in _sample_negs_for_anchor.
+            self._scores = (C @ gP_norm.t()).numpy()     # [N_lig, N_prot]
+            return {"refreshed": True, "n_lig": int(n_lig),
+                    "n_prot": int(n_prot), "mode": mode}
 
         # Lazy-build embedding caches (done once per process).
         if self._lig_emb_cache is None:
@@ -292,13 +419,13 @@ class TripletCollator:
                 # Cache per-residue [L_i, D] tensors as a Python list of CPU
                 # tensors — stacking with padding upfront is wasteful (would be
                 # ~3 GB at L_max=1024 across 618 train proteins).
-                prot_residues = [self.ds[self._prot_to_idx[u]]["prot_emb"]
+                prot_residues = [self.ds.protein_emb_at(self._prot_to_idx[u])
                                  for u in self._all_proteins]
                 prot_lens = [int(t.shape[0]) for t in prot_residues]
                 self._prot_emb_cache = prot_residues  # type: ignore[assignment]
                 self._prot_lens_cache = prot_lens
             else:
-                prot_embs = [self.ds[self._prot_to_idx[u]]["prot_emb"]
+                prot_embs = [self.ds.protein_emb_at(self._prot_to_idx[u])
                              for u in self._all_proteins]
                 self._prot_emb_cache = torch.stack(prot_embs).to(torch.float32)
 
@@ -389,7 +516,14 @@ class TripletCollator:
         if not anchors:
             return None
 
-        lig_emb = torch.stack([a["lig_emb"] for a in anchors])
+        if self.ligand_encoder == "per_token":
+            # anchors carry [A_i, D] per-token ligand tensors -> pad to [B, A, D]
+            lig_tok = [a["lig_emb"] for a in anchors]
+            lig_lens = [int(t.shape[0]) for t in lig_tok]
+            lig_emb, lig_mask = _pad_residues(lig_tok, lig_lens)
+        else:
+            lig_emb = torch.stack([a["lig_emb"] for a in anchors])
+            lig_mask = None
 
         hard_active = self.use_hard and self._scores is not None
         neg_unis: list[list[str]] = []
@@ -399,6 +533,7 @@ class TripletCollator:
 
         out: dict = {
             "lig_emb":        lig_emb,
+            "lig_mask":       lig_mask,
             "smiles":         [a["smiles"] for a in anchors],
             "anchor_uniprot": [a["uniprot"] for a in anchors],
             "neg_uniprot":    neg_unis,
@@ -421,22 +556,43 @@ class TripletCollator:
             k = self.n_negatives
             all_neg_residues: list[torch.Tensor] = []
             all_neg_lens: list[int] = []
+            all_neg_graphs: list[dict] = []
             for negs in neg_unis:
                 for p in negs:
-                    r = self.ds[self._prot_to_idx[p]]["prot_emb"]
+                    r = self.ds.protein_emb_at(self._prot_to_idx[p])
                     all_neg_residues.append(r)
                     all_neg_lens.append(int(r.shape[0]))
+                    if self.load_graphs:
+                        # neg structure graph aligned to this protein's ESM2 length.
+                        all_neg_graphs.append(
+                            self.ds.load_structure(p, int(r.shape[0])))
             neg_flat, neg_mask_flat = _pad_residues(all_neg_residues, all_neg_lens)
             L_max_neg, D = neg_flat.shape[-2], neg_flat.shape[-1]
             out["pos_prot"]  = pos_prot                              # [B, L_pos, D]
             out["pos_mask"]  = pos_mask                              # [B, L_pos]
             out["neg_prot"]  = neg_flat.reshape(B, k, L_max_neg, D)  # [B, k, L_neg, D]
             out["neg_mask"]  = neg_mask_flat.reshape(B, k, L_max_neg)  # [B, k, L_neg]
+
+            if self.load_graphs:
+                # gearbind: pos protein graphs [B,...], ligand graphs [B,...],
+                # neg protein graphs flattened to [B*k,...] then reshaped to [B,k,...].
+                out["prot_graph"] = collate_graph_list(
+                    [a["prot_graph"] for a in anchors],
+                    has_seqsep=True, node_feat_keys=["plddt"])
+                out["lig_graph"] = collate_graph_list(
+                    [a["lig_graph"] for a in anchors],
+                    has_seqsep=False, node_feat_keys=["node_feat"])
+                neg_graph_flat = collate_graph_list(
+                    all_neg_graphs, has_seqsep=True, node_feat_keys=["plddt"])
+                out["neg_prot_graph"] = {
+                    key: (val.reshape(B, k, *val.shape[1:]) if torch.is_tensor(val) else val)
+                    for key, val in neg_graph_flat.items()
+                }
         else:
             out["pos_prot"] = torch.stack([a["prot_emb"] for a in anchors])
             out["neg_prot"] = torch.stack([
                 torch.stack(
-                    [self.ds[self._prot_to_idx[p]]["prot_emb"] for p in negs]
+                    [self.ds.protein_emb_at(self._prot_to_idx[p]) for p in negs]
                 )
                 for negs in neg_unis
             ])

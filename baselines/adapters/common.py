@@ -112,3 +112,65 @@ class BRENDADataConfig:
         test_idx = df[df['uniprot'].isin(test_prots)]['idx'].tolist()
 
         return train_idx, val_idx, test_idx
+
+    def get_native_split(self) -> tuple:
+        """Dataset-provided native split, read from the ``split`` column of
+        the source CSV (values ``train`` / ``test``). A validation fraction
+        (``val_frac``) is carved at random (seeded) out of the native train
+        rows. Test rows are used verbatim.
+
+        This exists to compare against a benchmark's own published numbers
+        on its own held-out test set (e.g. ESP's phylogenetic test split vs
+        Kroll et al.'s reported ROC-AUC) rather than the project's
+        protein-stratified split. Returns (train_idx, val_idx, test_idx) as
+        lists of CSV row indices (same ``idx`` convention as load_pairs).
+        """
+        df = pd.read_csv(self.csv_path)
+        if 'split' not in df.columns:
+            raise ValueError(
+                f"No 'split' column in {self.csv_path}; native split "
+                "unavailable for this dataset"
+            )
+        df['idx'] = df.index
+        sequences = self.load_sequences()
+        df = df[df['uniprot'].isin(sequences)]
+
+        test_idx = df[df['split'] == 'test']['idx'].tolist()
+        train_pool = df[df['split'] == 'train']['idx'].tolist()
+
+        rng = random.Random(self.seed)
+        rng.shuffle(train_pool)
+        n_val = max(1, int(len(train_pool) * self.val_frac))
+        val_idx = train_pool[:n_val]
+        train_idx = train_pool[n_val:]
+
+        return train_idx, val_idx, test_idx
+
+    def get_random_split(self) -> tuple:
+        """Transductive (pair-level) train/val/test split.
+
+        Splits individual (protein, ligand) ROWS at random — the same protein
+        may appear in train and test. This is NOT the canonical split; it
+        exists only to measure the *ceiling* of extractable ligand-conditional
+        signal (an upper bound on matrix-MRR under per-protein memorisation),
+        as a counterfactual to the protein-disjoint get_protein_split().
+        Same seed and val/test fractions so the only changed variable is
+        protein disjointness. Returns (train_idx, val_idx, test_idx) row lists.
+        """
+        df = self.load_pairs()
+        sequences = self.load_sequences()
+        df = df[df['uniprot'].isin(sequences)].reset_index(drop=True)
+
+        idx = df['idx'].tolist()
+        rng = random.Random(self.seed)
+        rng.shuffle(idx)
+
+        n = len(idx)
+        n_val = max(1, int(n * self.val_frac))
+        n_test = max(1, int(n * self.test_frac))
+
+        test_idx = idx[:n_test]
+        val_idx = idx[n_test:n_test + n_val]
+        train_idx = idx[n_test + n_val:]
+
+        return train_idx, val_idx, test_idx
