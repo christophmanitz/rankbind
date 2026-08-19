@@ -90,18 +90,11 @@
 			{\qrcode[height=\fqrsize, level=M, nolink]{https://christophmanitz.de}};
 		\node [anchor=north west, font=\setthemainfont\scriptsize]
 			at ([yshift=-5mm] rbqrA.south west) {christophmanitz.de};
-		%
-		% Placeholder: the repository does not exist yet, so this is deliberately
-		% not a scannable code. Replace the node body with
-		% \qrcode[height=\fqrsize, level=M, nolink]{<url>} once it does.
 		\node (rbqrB) [at=(current page.north west), anchor=north west,
-			xshift=35.0cm, yshift=-106.55cm, draw=scadsaigrey, line width=1pt,
-			dash pattern=on 3mm off 2mm, minimum width=\fqrsize,
-			minimum height=\fqrsize, align=center,
-			font=\setthemainfont\scriptsize\color{scadsaigrey}]
-			{QR code\\for the code\\repository};
-		\node [anchor=north west, font=\setthemainfont\scriptsize,
-			text=scadsaigrey] at ([yshift=-5mm] rbqrB.south west) {to be added};
+			xshift=35.0cm, yshift=-106.55cm]
+			{\qrcode[height=\fqrsize, level=M, nolink]{https://github.com/christophmanitz/rankbind}};
+		\node [anchor=north west, font=\setthemainfont\scriptsize]
+			at ([yshift=-5mm] rbqrB.south west) {github.com/christophmanitz/rankbind};
 	\end{tikzpicture}%
 }
 
