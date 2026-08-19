@@ -1,0 +1,14 @@
+# RankBind runtime requirements (Leipzig HPC venv "hieratombind", torch 2.8.0+cu128).
+# Pin versions loosely; manifests in results/v5_rankbind/*/manifest.json record
+# the exact versions of every run.
+torch>=2.8.0
+numpy>=1.26
+pandas>=2.0
+scikit-learn>=1.5
+scipy>=1.11
+transformers>=4.40
+pyyaml>=6.0
+tqdm>=4.66
+matplotlib>=3.8
+rdkit>=2023.9
+pypdf>=5.0

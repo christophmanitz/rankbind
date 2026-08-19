@@ -16,7 +16,7 @@ paper.
 
 ```bash
 # Fresh clone with submodule (the dataset pipeline lives there):
-git clone --recurse-submodules <rankbind-url>
+git clone --recurse-submodules https://github.com/christophmanitz/rankbind
 cd rankbind
 
 # Or if already cloned plain:
@@ -24,7 +24,8 @@ git submodule update --init --recursive
 
 # Leipzig HPC environment used for every run in the paper:
 module load GCC/11.3.0 CUDA/12.4.0 Python/3.10.4-GCCcore-11.3.0
-source ~/venvs/hieratombind/bin/activate
+python -m venv ~/venvs/hieratombind && source ~/venvs/hieratombind/bin/activate
+pip install -r requirements.txt
 ```
 
 **Venvs used.** `~/venvs/hieratombind` covers the `v5_rankbind`

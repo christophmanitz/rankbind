@@ -54,7 +54,9 @@ scripts/            SLURM submission scripts and aggregators
                     run_v5_ablations.sh, run_v5_brenda_sabio_hp_sweep.sh,
                     aggregate_multiseed.py, collect_v5_runs.py).
 paper/              LaTeX + Markdown draft, figures, references.bib,
-                    Makefile.
+                    Makefile. `poster_scads/` holds the ScaDS.AI poster
+                    (sources + `build.sh`), `poster_figure_data/` the
+                    exported CSV evidence behind its figures.
 docs/               Historical plans + the HP-sweep integration plan.
 
 reactionDataFiltering/   git submodule — the dataset pipeline
@@ -83,7 +85,7 @@ clone with `--recurse-submodules`, or initialise after a plain clone:
 
 ```bash
 # Fresh clone (recommended):
-git clone --recurse-submodules <rankbind-url>
+git clone --recurse-submodules https://github.com/christophmanitz/rankbind
 
 # Already cloned without --recurse-submodules:
 git submodule update --init --recursive
@@ -97,7 +99,8 @@ embeddings under `reactionDataFiltering/data/interim/`.
 
 ```bash
 module load GCC/11.3.0 CUDA/12.4.0 Python/3.10.4-GCCcore-11.3.0
-source ~/venvs/hieratombind/bin/activate
+python -m venv ~/venvs/hieratombind && source ~/venvs/hieratombind/bin/activate
+pip install -r requirements.txt
 ```
 
 The `hieratombind` venv covers the v5_rankbind training/eval stack
