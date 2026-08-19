@@ -1,12 +1,11 @@
 # Reproducibility
 
-This file maps every numerical claim, table, and figure in the paper
-(`paper/main.tex`, also `paper/paper.md`) to the exact command that
-emits it, the input artefacts it depends on, and the output file path
-under this repository's working tree. The goal is single-step
-regeneration of the paper's evidence from a fresh clone.
-
-The companion file `docs/HP_SWEEP_INTEGRATION_PLAN.md` documents how a
+Every number, table, and figure in the paper (`paper/main.tex`, also
+`paper/paper.md`) maps to a command in this file. Each entry below
+lists the command to run from the project root, the input artefacts it
+expects to exist, and the output paths it writes, so a single pass
+through §3 regenerates the paper's evidence from a fresh clone. The
+companion file `docs/HP_SWEEP_INTEGRATION_PLAN.md` documents how a
 sweep result that arrives after this commit gets folded back into the
 paper.
 
@@ -28,15 +27,15 @@ python -m venv ~/venvs/hieratombind && source ~/venvs/hieratombind/bin/activate
 pip install -r requirements.txt
 ```
 
-**Venvs used.** `~/venvs/hieratombind` covers the `v5_rankbind`
+Venvs used: `~/venvs/hieratombind` covers the `v5_rankbind`
 training/eval stack and every `evaluation/` diagnostic. DrugBAN
 training requires `~/venvs/drugban` (separate torch + DGL). ESM2
 embedding generation uses `~/venvs/esm2` and lives inside the
 submodule.
 
-**GPU.** All paper runs use one NVIDIA A30 on the Leipzig cluster,
+GPU: all paper runs use one NVIDIA A30 on the Leipzig cluster,
 SLURM partition `paula` (with `clara` as fallback). Mean per-seed
-walltime: ≈1.5 h for `v4_default`, ≈4 h for the Stage-b residue
+walltime is ≈1.5 h for `v4_default` and ≈4 h for the Stage-b residue
 extension.
 
 ---
@@ -54,20 +53,19 @@ Every training run produces a `manifest.json` under
   `score_matrix_rankbind.npy`.
 - Train/val/test split statistics.
 
-This means any single number in the paper can be traced from its CSV
-row in `evaluation/attractor_results/...` back to the manifest, the
-config, the input data hash, and the code commit. The reverse direction
-also works: `scripts/collect_v5_runs.py` walks the manifests and emits
-`results/v5_rankbind/runs_manifest.csv` (one row per run).
+So any number in the paper can be traced from its CSV row in
+`evaluation/attractor_results/...` back to the manifest, the config,
+the input data hash, and the code commit. The reverse direction also
+works: `scripts/collect_v5_runs.py` walks the manifests and emits
+`results/v5_rankbind/runs_manifest.csv`, one row per run.
 
 ---
 
 ## 3. Per-result regeneration
 
-Each row corresponds to a single piece of evidence in the paper. "Cmd"
-is the command to run from the project root; "Reads" lists the input
-files the command expects to exist; "Writes" lists the artefacts it
-emits.
+Each entry is a single piece of evidence in the paper. "Cmd" is the
+command to run from the project root; "Reads" lists the input files
+the command expects to exist; "Writes" lists the artefacts it emits.
 
 ### 3.1 §3.3 Phase-1 baseline numbers (Table 1: pooled AUC, per-ligand AUC, Top-10 Jaccard, Gini)
 
@@ -123,7 +121,7 @@ emits.
   ```
 - Reads: `v5_rankbind/configs/probe_bce_aux.json`.
 - Writes:
-  `results/v5_rankbind/<run_id>/test_summary.json` — the gAUC = 0.655
+  `results/v5_rankbind/<run_id>/test_summary.json`, the gAUC = 0.655
   number cited at the top of §6.4 lives here.
 
 ### 3.5 §7.3 Attention-weight audit (cross-seed Spearman = 0.86)
@@ -218,19 +216,19 @@ each with the standard `manifest.json` + `score_matrix_rankbind.npy`
 
 ## 4. Provenance: what is *not* re-runnable from this repo alone
 
-- **AlphaFold structures** under `~/hpc/structures/` — too large to
+- AlphaFold structures under `~/hpc/structures/` are too large to
   redistribute in the repo. These are AlphaFold v6 PDBs keyed by
-  UniProt accession; pulled by `reactionDataFiltering/hpc/...`.
-- **ESM2 per-residue embeddings** under
-  `reactionDataFiltering/data/interim/.../esm2_embeddings/` — also
+  UniProt accession, pulled by `reactionDataFiltering/hpc/...`.
+- ESM2 per-residue embeddings under
+  `reactionDataFiltering/data/interim/.../esm2_embeddings/` are also
   too large to redistribute. Regenerable from the sequences via the
   submodule's ESM2 batch script in the `~/venvs/esm2` venv.
-- **The BRENDA+SABIO 2026-04-29 raw snapshot** is the dataset cut
+- The BRENDA+SABIO 2026-04-29 raw snapshot is the dataset cut
   pinned by the submodule commit; the full snapshot tarball
   (`brenda_sabio_datasets_2026-04-29.tar.gz`, ~650 MB) lives next to
   the parent repo on disk and is not tracked.
 
-The paper does not require any of these to be regenerated — every
+The paper does not require any of these to be regenerated: every
 result is downstream of pinned `score_matrix_*.npy` artefacts, and
 the regeneration commands above only need the trained checkpoints
 and the dataset CSVs.

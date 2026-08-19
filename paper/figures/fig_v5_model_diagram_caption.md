@@ -1,4 +1,4 @@
-# Bildunterschrift — fig_v5_model_diagram
+# Bildunterschrift: fig_v5_model_diagram
 
 **Architektur von RankBind (v5).**
 Der Ligand kommt als SMILES-String herein, das Protein als Aminosäuresequenz.

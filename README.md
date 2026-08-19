@@ -4,9 +4,9 @@ Research repository for *RankBind: Protein-Invariant Contrastive Learning
 for Ligand-Conditional DTI* (working title).
 
 The paper draft (`paper/main.tex`, `paper/paper.md`) is the canonical
-description of the work; this README is a navigational index. Every
+description of the work; this README is just a navigational index. Every
 numerical result in the paper is reproducible end-to-end from this
-repository at the current commit — see `REPRODUCIBILITY.md` for the
+repository at the current commit, see `REPRODUCIBILITY.md` for the
 exact commands.
 
 ---
@@ -19,15 +19,15 @@ tree:
 | Contribution                                                       | Code lives in                              | Pinned artefacts under                                            | Paper section |
 |--------------------------------------------------------------------|--------------------------------------------|-------------------------------------------------------------------|---------------|
 | **(C1) Null-baseline diagnosis** of pooled-AUC shortcut on BRENDA  | `evaluation/null_baselines.py`, `evaluation/attractor_diagnosis.py`, `evaluation/cross_model_overlap.py`, `evaluation/test_set_eval.py` | `results/original_*/score_matrix_*.npy` + `evaluation/attractor_results/{test_summary_all,gini_comparison,cross_model_overlap}.csv` | §3 |
-| **(C2) RankBind architecture** (sampler + margin + bilinear + hard-negs) | `v5_rankbind/{data,sampler,model,loss,metrics,train,eval}.py` + `v5_rankbind/configs/` | `results/v5_rankbind/*_v4_s{42,7,1337}/` (3 seeds × 5 ablations)  | §4–§6 |
+| **(C2) RankBind architecture** (sampler + margin + bilinear + hard-negs) | `v5_rankbind/{data,sampler,model,loss,metrics,train,eval}.py` + `v5_rankbind/configs/` | `results/v5_rankbind/*_v4_s{42,7,1337}/` (3 seeds × 5 ablations)  | §4-§6 |
 | **(C3) Residue-level extension** (attention pool over per-residue ESM2) | `v5_rankbind/configs/abl_attn_pool.json` (model already in `v5_rankbind/model.py`); audit in `evaluation/attn_weight_inspection.py` | `results/v5_rankbind/*_v5b_s*/` + `paper/figures/fig_attn_*.png`  | §7 |
 | **(C4) Transferability probe + practitioner recipe** on enzyme-wide BRENDA+SABIO | `evaluation/null_prior_probe_brenda_sabio.py`, `v4_residue_only/{train_brenda_sabio.py,dataset_split.py,run_brenda_sabio.sh}` | `evaluation/attractor_results/null_prior_probe_brenda_sabio.{csv,txt}` + the three `*_with_decoys_bs_v1` v5 run dirs | §8.1 + §8.2 |
 
 The Stage-1 hyperparameter sweep submitted alongside this commit
 (`scripts/run_v5_brenda_sabio_hp_sweep.sh`, twelve configs under
-`v5_rankbind/configs/sweeps/hp_brenda_sabio/`) is **not** in the
-paper's headline results; how its outcomes are folded back into the
-paper is documented in `docs/HP_SWEEP_INTEGRATION_PLAN.md`.
+`v5_rankbind/configs/sweeps/hp_brenda_sabio/`) is not in the paper's
+headline results; how its outcomes are folded back into the paper is
+documented in `docs/HP_SWEEP_INTEGRATION_PLAN.md`.
 
 ---
 
@@ -80,7 +80,7 @@ data/, results/, logs/, external/, *.tar.gz, *.pt, *.npy
 
 ## 3. Setup
 
-The repository depends on the `reactionDataFiltering/` submodule —
+The repository depends on the `reactionDataFiltering/` submodule;
 clone with `--recurse-submodules`, or initialise after a plain clone:
 
 ```bash
@@ -116,7 +116,7 @@ See `REPRODUCIBILITY.md` §5.
 
 ## 4. Working with the submodule
 
-Day-to-day editing of dataset-pipeline code happens **inside** the
+Day-to-day editing of dataset-pipeline code happens inside the
 submodule, not from the parent repo:
 
 ```bash
@@ -138,8 +138,8 @@ git commit -m "bump reactionDataFiltering to <new-hash>"
 ```
 
 That commit in rankbind records "this version of the research code
-goes with this version of the dataset pipeline" — which is the
-whole point of using a submodule instead of two unrelated clones.
+goes with this version of the dataset pipeline", which is
+the whole point of using a submodule instead of two unrelated clones.
 
 ### Pulling someone else's submodule update
 
@@ -153,13 +153,13 @@ against an old submodule and may see weird import or path errors.
 
 ### Common gotchas
 
-- **Detached HEAD inside the submodule.** After `git submodule
+- Detached HEAD inside the submodule. After `git submodule
   update`, the submodule is at a specific commit, not on a branch.
   Before editing files in there, do `cd reactionDataFiltering &&
   git checkout main` so your future commits land on a branch.
-- **Forgot `--recurse-submodules` on clone.** `reactionDataFiltering/`
+- Forgot `--recurse-submodules` on clone. `reactionDataFiltering/`
   is empty. Fix with `git submodule update --init --recursive`.
-- **Pushed in submodule, forgot to bump in parent.** Collaborators
+- Pushed in submodule, forgot to bump in parent. Collaborators
   will check out the *old* pinned hash and not see your changes.
   Always pair the two pushes.
 

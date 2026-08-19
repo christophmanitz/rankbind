@@ -1,4 +1,4 @@
-# RankBind: Protein-Invariant Contrastive Learning for Ligand-Conditional Drug–Target Interaction
+# RankBind: Protein-Invariant Contrastive Learning for Ligand-Conditional Drug-Target Interaction
 
 **Christoph Manitz** · Leipzig University, Germany · `christoph.manitz@uni-leipzig.de`
 *April 2026*
@@ -7,30 +7,30 @@
 
 ## Abstract
 
-Drug–target interaction (DTI) models on enzyme–substrate benchmarks are
+Drug-target interaction (DTI) models on enzyme-substrate benchmarks are
 typically validated by *pooled* discrimination metrics such as global AUC. We
-show that on the BRENDA enzyme–substrate corpus four published DTI baselines
-(DrugBAN, MolTrans, GraphDTA, GEMS) reach pooled AUC of 0.63–0.95 while their
+show that on the BRENDA enzyme-substrate corpus four published DTI baselines
+(DrugBAN, MolTrans, GraphDTA, GEMS) reach pooled AUC of 0.63-0.95 while their
 per-ligand ranking AUC is at or *below* chance, and that their attractor
 distribution is indistinguishable from a data-blind protein-prior baseline
 (Gini ≈ 0.995 for both). Pooled AUC, in this regime, certifies a
 protein-level shortcut rather than ligand-conditional binding. We introduce
-**RankBind**, a 627k-parameter architecture whose four ingredients —
+**RankBind**, a 627k-parameter architecture that combines four ingredients:
 protein-balanced sampling, a within-ligand margin loss, a low-rank bilinear
-interaction head, and online hard-negative mining — jointly enforce
+interaction head, and online hard-negative mining. Together they enforce
 ligand-conditional ranking. Across three seeds on the protein-stratified
-split, RankBind lifts matrix MRR from ≈0.06 (BCE control) to **0.326 ± 0.072**,
-Hit@10 to **0.755 ± 0.095**, and reduces the top-10 attractor overlap with
-the data-blind prior from 0.54–0.67 to **0.000**. A residue-level extension
+split, RankBind lifts matrix MRR from ≈0.06 (BCE control) to 0.326 ± 0.072,
+Hit@10 to 0.755 ± 0.095, and reduces the top-10 attractor overlap with
+the data-blind prior from 0.54-0.67 to 0.000. A residue-level extension
 based on a learned attention pool over per-residue ESM2 embeddings adds a
-further **+0.10 absolute MRR** at +0.6% parameters; an attention-weight audit
-reveals that the lift is driven by per-residue normalisation rather than
-sharp pocket selection, with the rank order of attention weights nevertheless
+further +0.10 absolute MRR at +0.6% parameters; an attention-weight audit
+shows that the lift is driven by per-residue normalisation rather than
+sharp pocket selection, while the rank order of attention weights is
 reproducible across seeds (Spearman ρ = 0.86). A transferability probe on
 three enzyme-wide BRENDA+SABIO with-decoys datasets at 50× the scale
-(43–57k pairs) shows the recipe's anti-shortcut property survives the
-shift — top-10 Jaccard with the data-blind prior remains 0.008–0.017 — even
-though absolute ranking quality drops, which we trace to a fixed
+(43-57k pairs) shows the recipe's anti-shortcut property survives the
+shift: the top-10 Jaccard with the data-blind prior remains 0.008-0.017
+even though absolute ranking quality drops, which we trace to a fixed
 hard-negative pool that is no longer the right size at scale. We distil
 the findings into an eight-step practitioner recipe for diagnosing and
 breaking protein-level shortcuts in DTI models. Code, configurations, and
@@ -42,9 +42,9 @@ three-seed manifests are released for reproducibility.
 
 Predicting whether a small molecule binds a given protein is a central
 problem in computational chemistry and a routine benchmark for deep
-representation learning. On the enzyme–substrate sub-task, several recent
-architectures — DrugBAN [Bai et al., 2023], MolTrans [Huang et al., 2021],
-GraphDTA [Nguyen et al., 2021], and GEMS [Wang et al., 2023] — report pooled
+representation learning. On the enzyme-substrate sub-task, several recent
+architectures (DrugBAN [Bai et al., 2023], MolTrans [Huang et al., 2021],
+GraphDTA [Nguyen et al., 2021], and GEMS [Wang et al., 2023]) report pooled
 AUC values that suggest saturated benchmarks. We argue that these high pooled
 scores reflect a *shortcut* [Geirhos et al., 2020]: the models infer the
 interaction probability primarily from the protein, with the ligand
@@ -55,7 +55,7 @@ Our investigation began with a stronger hypothesis. Inspired by recent
 discussions of *universal attractor bias*, we conjectured that DTI score
 matrices on BRENDA would exhibit a Gini coefficient near 1.0 as evidence of
 pathological convergence onto a small set of attractor proteins. Empirically
-the Gini coefficient is indeed ≈0.995 for all four baselines — but a
+the Gini coefficient is indeed ≈0.995 for all four baselines, but a
 data-blind classifier (`null_prot_prior`) that scores each pair using only
 the per-protein training positive rate produces the *same* Gini. The metric
 reflects the marginal label geometry of the dataset, not a learned
@@ -66,32 +66,32 @@ The actual pathology, surfaced by the same null-baseline probe, is a *rank*
 pathology: the four baselines pass pooled AUC by learning protein-level
 priors, while their within-ligand ranking is at or below chance. The Top-10
 Jaccard of attractor proteins between three of the four baselines and
-`null_prot_prior` is 0.54–0.67, indicating that two thirds of the
+`null_prot_prior` is 0.54-0.67, indicating that two thirds of the
 most-attended proteins are recoverable from a model that never inspects the
 ligand.
 
 ### Contributions
 
-1. A **null-baseline diagnosis** of the BRENDA enzyme–substrate benchmark
+1. A null-baseline diagnosis of the BRENDA enzyme-substrate benchmark
    showing that pooled AUC certifies a protein-level shortcut, that Gini is
    a dataset-geometry artefact, and that *ligand-conditional* matrix MRR /
    Hit@K is the primary metric needed to differentiate genuine DTI learning
    from shortcut exploitation (§3).
-2. **RankBind**, a 627k-parameter architecture combining protein-balanced
+2. RankBind, a 627k-parameter architecture combining protein-balanced
    sampling, within-ligand margin loss, a low-rank bilinear head and online
    hard-negative mining; matched-capacity ablations across three seeds show
    that all four ingredients are necessary, and that a BCE configuration
    reproduces the Phase-1 pathology even with the same encoders and split
-   (§4–§6).
-3. A **residue-level extension** (Stage-b) using learned attention over
+   (§4-§6).
+3. A residue-level extension (Stage-b) using learned attention over
    per-residue ESM2 embeddings that adds +0.10 absolute MRR at +0.6%
    parameters, together with an attention-weight audit identifying
-   per-residue normalisation — not sharp pocket selection — as the active
+   per-residue normalisation, not sharp pocket selection, as the active
    mechanism (§7).
-4. A **transferability probe** on three enzyme-wide BRENDA+SABIO datasets at
+4. A transferability probe on three enzyme-wide BRENDA+SABIO datasets at
    50× the scale showing the recipe's anti-shortcut property is preserved
-   (top-10 Jaccard with `null_prot_prior` 0.008–0.017, mean per-row Spearman
-   ≤ 0), distilled into an **eight-step practitioner recipe** for
+   (top-10 Jaccard with `null_prot_prior` 0.008-0.017, mean per-row Spearman
+   ≤ 0), distilled into an eight-step practitioner recipe for
    diagnosing and breaking the same shortcut on a new model or dataset
    (§8).
 
@@ -107,7 +107,7 @@ transformer-based model with sub-structural attention; **DrugBAN**
 [Bai et al., 2023] introduces a bilinear attention network with explicit
 pairwise interaction modelling; **GEMS** [Wang et al., 2023] uses pretrained
 ESM2 [Lin et al., 2023] protein embeddings and a graph-based small-molecule
-encoder. All four have been reported as competitive on enzyme–substrate
+encoder. All four have been reported as competitive on enzyme-substrate
 prediction; we re-evaluate them under a protein-stratified split with
 ligand-conditional metrics.
 
@@ -133,7 +133,7 @@ protein-language-model backbone (§7).
 
 ### 3.1 Setup
 
-We use BRENDA enzyme–substrate pairs with explicit decoys
+We use BRENDA enzyme-substrate pairs with explicit decoys
 (`data/dataset_with_decoys.csv`) and a protein-stratified split (seed 42):
 proteins in the test set never appear in training. A 200×200 *score matrix*
 is computed for each model on a fixed pool of test ligands and test proteins,
@@ -162,7 +162,7 @@ DrugBAN, MolTrans and GraphDTA all clear pooled AUC of 0.85 while their
 within-ligand AUC is at or *below* 0.5. GEMS, which already uses pretrained
 ESM2 features, fares no better. The Gini coefficient on the score matrix is
 identical to that of `null_prot_prior` for all four models; the Top-10
-Jaccard with `null_prot_prior` is 0.54–0.67 for three of four baselines,
+Jaccard with `null_prot_prior` is 0.54-0.67 for three of four baselines,
 indicating that the most-attended proteins are mostly determined by the data
 prior, not by the ligand.
 
@@ -198,7 +198,7 @@ ingredients. Ligands are embedded with ChemBERTa
 [Chithrananda et al., 2020] (768-d) and proteins with ESM2
 [Lin et al., 2023] (1280-d mean-pooled in the v4 default; per-residue in the
 Stage-b extension of §7). All encoders are frozen; the trainable budget is
-**627,201 parameters**.
+627,201 parameters.
 
 ### 4.1 Protein-balanced sampling
 
@@ -216,8 +216,8 @@ proteins {Pᵢ⁻}:
 $$\mathcal{L}_{\text{margin}}(L, P^+, P^-_i) = \max\!\bigl(0,\; m - s(L, P^+) + s(L, P^-_i)\bigr), \quad m = 1.0,$$
 
 where s is the model score function. Optimising this loss directly improves
-the pairwise score order *within* each ligand — structurally aligned with
-matrix MRR.
+the pairwise score order *within* each ligand, which is structurally aligned
+with matrix MRR.
 
 ### 4.3 Bilinear interaction head
 
@@ -239,7 +239,7 @@ For each anchor, the k = 4 negatives are drawn uniformly from the top
 being sampled uniformly at random. The diagnostic `pos_above_neg_max` (the
 fraction of anchors whose positive score exceeds the maximum of its sampled
 negatives) rises from 0.92 to 0.97 over the first 32 epochs in the v4
-default — the model is visibly learning to separate its own current hardest
+default. The model is visibly learning to separate its own current hardest
 confusers.
 
 ### 4.5 Why each ingredient is needed
@@ -247,7 +247,7 @@ confusers.
 The matched-capacity ablations of §6 show:
 
 - removing the margin loss collapses MRR by ~8× and restores pooled AUC to
-  0.95 — the shortcut returns;
+  0.95; the shortcut returns;
 - removing the sampler costs −44% MRR;
 - the bilinear head ties the MLP head in mean MRR but more than halves its
   seed-to-seed variance;
@@ -262,7 +262,7 @@ The matched-capacity ablations of §6 show:
 
 ### 5.1 Dataset and split
 
-BRENDA enzyme–substrate pairs with curated decoys; protein-stratified
+BRENDA enzyme-substrate pairs with curated decoys; protein-stratified
 80/10/10 train/val/test split with seed 42. The test set contains 1404
 pairs covering 200 unique proteins and 200 unique ligands; the 200×200
 score matrix used for primary metrics is built on this pool.
@@ -313,58 +313,58 @@ Three-seed means ± standard deviation across seeds {42, 7, 1337}:
 | abl_bce_only        | MLP-concat       | 0.015±0.002     | 0.000±0.000     | 0.000±0.000     | −0.002±0.001    | 0.587±0.137     | 0.948±0.030   |
 | **abl_attn_pool v5b** | biln-128 + attn | **0.427±0.123** | **0.686±0.119** | **0.814±0.103** | **−0.216±0.028**| **0.000±0.000** | 0.659±0.028   |
 
-**The default v4 recipe passes all four pre-registered thresholds by
-2–21×.** The residue-level extension passes them by even more.
-[Figure 1: `figures/fig_summary.png`] aggregates the headline numbers
-visually.
+The default v4 recipe passes all four pre-registered thresholds by 2-21×;
+the residue-level extension passes them by even more. [Figure 1:
+`figures/fig_summary.png`] aggregates the headline numbers visually.
 
 ### 6.2 Reading the ablation
 
 **Margin loss is the dominant contribution.** Removing the margin loss
-drops MRR 0.326 → 0.041 (~8×). With BCE on balanced batches and a bilinear
-head, the bilinear inductive bias *alone* does not preserve a ranking
-signal. The pooled AUC of `abl_no_margin` simultaneously rebounds to 0.95:
-*the shortcut returns the moment the ranking objective is removed.*
+drops MRR from 0.326 to 0.041 (~8×). With BCE on balanced batches and a
+bilinear head, the bilinear inductive bias *alone* does not preserve a
+ranking signal. The pooled AUC of `abl_no_margin` simultaneously rebounds
+to 0.95: *the shortcut returns the moment the ranking objective is
+removed.*
 
 **Balanced sampler is a secondary positive.** Removing the sampler drops
-MRR 0.326 → 0.183 (−44%). The within-ligand margin still produces a ranking
-signal under random batching, but the protein-level prior re-imprints
+MRR from 0.326 to 0.183 (−44%). The within-ligand margin still produces a
+ranking signal under random batching, but the protein-level prior re-imprints
 whenever a heavily positive protein dominates a batch.
 
 **Bilinear vs. MLP at matched capacity: stability win.** At identical
 65,793 head parameters and identical 627k total, the bilinear head and the
 MLP-concat head have means in the same neighbourhood (0.326 vs. 0.243) but
-very different stability: bilinear MRR std is 0.072, MLP std is 0.161 — a
-ratio of **2.2×**. Same pattern on Hit@10 (std 0.095 vs. 0.312) and
+very different stability: bilinear MRR std is 0.072, MLP std is 0.161, a
+ratio of 2.2×. Same pattern on Hit@10 (std 0.095 vs. 0.312) and
 Gini-residual (std 0.022 vs. 0.136). *We keep the bilinear head for
 seed-to-seed stability and interpretability, not for a mean-MRR win.*
 
 **BCE-only reproduces the Phase-1 pathology.** `abl_bce_only` (MLP head,
 BCE loss, random batches, no margin) is the closest in-package re-creation
-of a Phase-1 baseline. Its metrics — gAUC = 0.948, matrix MRR ≈ 0.015,
-Top-10 Jaccard with `null_prot_prior` = 0.587 — mirror the Phase-1
+of a Phase-1 baseline. Its metrics (gAUC = 0.948, matrix MRR ≈ 0.015,
+Top-10 Jaccard with `null_prot_prior` = 0.587) mirror the Phase-1
 baselines despite sharing the encoders and split with the rest of the
 table. This is the cleanest in-package demonstration that the
 shortcut-avoidant behaviour is produced by the four RankBind ingredients
 *together*, and not by the encoders or the data.
 
 **Hard-negative mining cleanly lifts the default.** Single-seed (s = 42)
-v3 → v4: MRR 0.201 → 0.326 (+62%), Hit@10 0.559 → 0.755 (+35%),
-Gini-residual −0.124 → −0.210. Hard-negative mining is part of the default
+v3 to v4: MRR 0.201 to 0.326 (+62%), Hit@10 0.559 to 0.755 (+35%),
+Gini-residual −0.124 to −0.210. Hard-negative mining is part of the default
 recipe, not an ablation.
 
 ### 6.3 Visual evidence
 
-- **`figures/fig_response_maps.png`** — 200×200 score response maps. Top:
+- `figures/fig_response_maps.png`: 200×200 score response maps. Top:
   the four Phase-1 baselines. Bottom: RankBind (v4 default),
-  `null_prot_prior`, `null_random`. Vertical bands indicate "one protein
-  wins many ligands" — the attractor signature. The four baselines
+  `null_prot_prior`, `null_random`. Vertical bands mean "one protein
+  wins many ligands", the attractor signature. The four baselines
   reproduce the banding pattern of `null_prot_prior`. RankBind is visibly
   de-banded; its Gini drops to 0.787 vs. ≈0.995 for everything else.
-- **`figures/fig_cross_overlap.png`** — Top-10 attractor-identity Jaccard.
+- `figures/fig_cross_overlap.png`: Top-10 attractor-identity Jaccard.
   The `null_prot_prior` column shows GraphDTA, DrugBAN and GEMS at
-  0.54–0.67. RankBind's row and column are 0.00 everywhere.
-- **`figures/fig_auc_scatter.png`** — pooled AUC vs. ligand-conditional
+  0.54-0.67. RankBind's row and column are 0.00 everywhere.
+- `figures/fig_auc_scatter.png`: pooled AUC vs. ligand-conditional
   AUC. RankBind sits alone in the upper-left (gAUC ≈ 0.62, matrix MRR
   0.326). The four baselines occupy the lower-right (high gAUC, ranking
   at or below random).
@@ -375,16 +375,16 @@ The pre-registered Global AUC ≥ 0.80 threshold was originally listed
 alongside the four ranking thresholds. The default v4 recipe sits at
 0.634 ± 0.010. Two interpretations were possible:
 
-1. *Loss-function artefact* — the margin loss is shape-matched to MRR but
+1. *Loss-function artefact*. The margin loss is shape-matched to MRR but
    does not directly optimise pairwise classification; a small BCE
    auxiliary should recover gAUC.
-2. *Dataset ceiling* — gAUC ≥ 0.80 is achievable on this benchmark only by
+2. *Dataset ceiling*. gAUC ≥ 0.80 is achievable on this benchmark only by
    re-acquiring the protein-level shortcut, and no loss-function tuning
    reaches it without sacrificing MRR.
 
 A direct probe (`probe_bce_aux_v4_bceaux05`, seed 42) adds BCE-auxiliary
-loss with weight 0.5 to the v4 default. The result lifts gAUC by **only
-+0.03** (0.623 → 0.655), nowhere near 0.80, with matrix ranking unchanged.
+loss with weight 0.5 to the v4 default. The result lifts gAUC by only
++0.03 (0.623 to 0.655), nowhere near 0.80, with matrix ranking unchanged.
 This rules out interpretation (1). We therefore retain gAUC in every table
 for comparability with prior work, but cease to treat it as a Pass/Fail
 gate: the shortcut metric RankBind is explicitly trading away cannot also
@@ -404,29 +404,29 @@ learnable query vector q ∈ ℝ¹²⁸⁰ produces per-residue attention scores
 $$\alpha_i = \mathrm{softmax}\bigl(q^\top \mathrm{LN}(e_i) / \sqrt{d}\bigr)$$
 
 that aggregate normalised residue embeddings into a fixed 1280-d protein
-representation. The new module adds **3,840 parameters (+0.6%)**; no other
+representation. The new module adds 3,840 parameters (+0.6%); no other
 training detail changes.
 
 ### 7.2 Results
 
-The extension lifts MRR 0.326 → **0.427** (+0.101, +31%), Hit@5
-0.598 → 0.686 (+0.088), and Hit@10 0.755 → 0.814 (+0.059). Per-seed range:
-0.316 / 0.405 / 0.559 (seeds 42 / 1337 / 7). The lift passes the
-pre-registered Stage-b gate of +0.05 absolute MRR by 2×.
+The extension lifts MRR from 0.326 to 0.427 (+0.101, +31%), Hit@5
+from 0.598 to 0.686 (+0.088), and Hit@10 from 0.755 to 0.814 (+0.059).
+Per-seed range: 0.316 / 0.405 / 0.559 (seeds 42 / 1337 / 7). The lift
+passes the pre-registered Stage-b gate of +0.05 absolute MRR by 2×.
 
 ### 7.3 Attention-weight audit
 
 **Weights are near-uniform in magnitude.** A direct inspection of attention
 weights across all three seeds and 60 sampled proteins (see
 `figures/fig_attn_concentration_hist.png`) reveals that the median top-10%
-mass is **0.118** (vs. uniform expectation 0.10); the entropy is at the
+mass is 0.118 (vs. uniform expectation 0.10); the entropy is at the
 mathematical ceiling log L. The attention weights are not peaked.
 
 **Their rank-order is reproducible across seeds.** The same audit, on
 cross-seed comparisons, shows that the median Spearman rank correlation
-between attention weights of independently trained seeds is **0.86** (random
+between attention weights of independently trained seeds is 0.86 (random
 expectation ≈ 0), and the median top-10% residue-set Jaccard between seed
-pairs is **0.50** (random expectation ≈ 0.10); see
+pairs is 0.50 (random expectation ≈ 0.10); see
 `figures/fig_attn_cross_seed_agreement.png` and
 `figures/fig_attn_weight_examples.png`. Three independent training runs
 converge on the *same* low-amplitude per-residue preference.
@@ -442,7 +442,7 @@ near-uniform attention, the pooled representation collapses to
 dominate the pooled vector. The learned attention contributes the small
 residual.
 
-This is itself a paper-level finding: residue-level encoding helps
+This is a finding in its own right: residue-level encoding helps
 RankBind, but the active mechanism is per-residue normalisation rather than
 learned residue selection. The reproducibility of the low-magnitude residue
 preference across seeds suggests that real but subtle structural
@@ -469,15 +469,15 @@ attention-derived pocket selection is the only sound path forward.
 **Generality of the diagnosis.** The pooled-AUC vs.
 ligand-conditional-ranking gap we measure on BRENDA is unlikely to be
 unique to this benchmark. Any DTI corpus where the test protein
-distribution overlaps the training protein distribution — or where some
-proteins are dramatically more frequent than others — admits a
+distribution overlaps the training protein distribution, or where some
+proteins are dramatically more frequent than others, admits a
 protein-level shortcut. The null-baseline probe is cheap (a single matrix
 multiply) and we recommend it as a default sanity check before reporting
 pooled discrimination metrics on new DTI datasets.
 
 **Cost of shortcut avoidance.** RankBind explicitly trades pooled AUC for
-ranking quality: 0.95 → 0.65 in gAUC, 0.06 → 0.33 in matrix MRR. The right
-benchmark for an enzyme–substrate model is the latter — pooled AUC
+ranking quality: 0.95 to 0.65 in gAUC, 0.06 to 0.33 in matrix MRR. The right
+benchmark for an enzyme-substrate model is the latter: pooled AUC
 certifies a property that does not generalise across ligand identity.
 
 ### 8.1 Does the recipe survive larger, enzyme-wide data?
@@ -502,23 +502,23 @@ Spearman between the v4 score matrix and `null_prot_prior` is at or below
 zero on all three enzyme-wide datasets, and the top-10 Jaccard is one to two
 orders of magnitude smaller than for the unmitigated Phase-1 baselines on
 BRENDA-200. The anti-shortcut property of the recipe transfers cleanly.
-(ii) **Absolute ranking quality drops.** Matrix MRR falls 2–14× from the
+(ii) **Absolute ranking quality drops.** Matrix MRR falls 2-14× from the
 BRENDA-200 default. Diagnostically this is *not* the Phase-1 pathology
 re-emerging (the model is not just learning the per-protein training base
-rate); it is signal-to-noise loss on a much harder ranking pool —
-~5k candidate proteins instead of 200, and decoys drawn from a 14k-SMILES
+rate); it is signal-to-noise loss on a much harder ranking pool: ~5k
+candidate proteins instead of 200, and decoys drawn from a 14k-SMILES
 universe instead of 200. The pre-registered `hard_pool_size = 50` is
-about 25% of the BRENDA-200 train set but 0.5–1.3% of the BRENDA+SABIO
+about 25% of the BRENDA-200 train set but 0.5-1.3% of the BRENDA+SABIO
 train set, so hard-negative mining devolves toward random sampling at this
 scale. Hyperparameter scaling (rather than a new method) is the indicated
 intervention. We treat this as a transferability finding for the diagnosis,
 not a competitive enzyme-wide result, and defer enzyme-wide hyperparameter
 re-tuning to future work.
 
-### 8.2 Practitioner recipe — what to do for a new model or dataset
+### 8.2 Practitioner recipe: what to do for a new model or dataset
 
 The evidence above and in §6 supports a small, ordered recipe for any
-enzyme–substrate or general DTI work:
+enzyme-substrate or general DTI work:
 
 1. **Run the `null_prot_prior` probe before reporting any pooled metric.**
    Score each (L, P) pair on the test set using only the per-protein
@@ -530,11 +530,11 @@ enzyme–substrate or general DTI work:
    nothing to maintain.
 2. **Use a within-ligand margin loss as the ranking objective.** This is
    the largest single lever in our ablation: removing it collapses MRR by
-   ~8× (0.326 → 0.041) and the pooled AUC of the no-margin model rebounds
-   to 0.95 — the shortcut returns. We recommend this loss in preference to
-   BCE on imbalanced batches, and explicitly *not* as an additive auxiliary:
-   a BCE auxiliary at weight 0.5 lifted gAUC by only +0.03 without
-   recovering ranking quality (§6.4).
+   ~8× (from 0.326 to 0.041) and the pooled AUC of the no-margin model
+   rebounds to 0.95; the shortcut returns. We recommend this loss in
+   preference to BCE on imbalanced batches, and explicitly *not* as an
+   additive auxiliary: a BCE auxiliary at weight 0.5 lifted gAUC by only
+   +0.03 without recovering ranking quality (§6.4).
 3. **Pair the loss with a protein-balanced sampler.** For each protein in
    the training set, draw an approximately equal number of positive and
    negative pairs per epoch. Removing this sampler costs −44% MRR on top of
@@ -543,9 +543,9 @@ enzyme–substrate or general DTI work:
 4. **Add online hard-negative mining, but scale `hard_pool_size` with the
    number of train proteins.** On BRENDA-200 a fixed pool of 50 hardest
    non-positive proteins per anchor lifts MRR from 0.20 to 0.33 (+62%). On
-   BRENDA+SABIO with 3.8–9.5k train proteins the same fixed value covers
+   BRENDA+SABIO with 3.8-9.5k train proteins the same fixed value covers
    < 1.3% of the protein pool and degrades to near-random sampling. We
-   recommend setting `hard_pool_size` to ~10–25% of `n_train_proteins` and
+   recommend setting `hard_pool_size` to ~10-25% of `n_train_proteins` and
    monitoring `pos_above_neg_max` to confirm the pool is producing
    informative negatives (it should rise into 0.95+ over training).
 5. **Prefer a low-rank bilinear interaction head over an MLP-concat head.**
@@ -556,24 +556,24 @@ enzyme–substrate or general DTI work:
 6. **For per-residue protein representations, normalise per residue before
    pooling.** Replacing the v4 mean-pool over per-residue ESM2 with a
    learned-query attention pool (+3,840 parameters, +0.6%) lifted MRR
-   0.326 → 0.427. The attention-weight audit (§7.3) shows the active
+   from 0.326 to 0.427. The attention-weight audit (§7.3) shows the active
    mechanism is per-residue LayerNorm rather than sharp pocket selection;
    a structurally-equivalent baseline that simply applies LayerNorm
    pre-pool is therefore a cheap, parameter-free first stop.
 7. **Do not gate model selection on pooled AUC.** Retain it for
-   comparability with prior work, but on enzyme–substrate corpora with a
+   comparability with prior work, but on enzyme-substrate corpora with a
    skewed per-protein label distribution it certifies a property the
    ranking task should explicitly trade away (§6.4). Three-seed matrix MRR
    with seed-aware standard deviations is the metric to gate on.
 8. **Re-run the null probe on every new dataset.** A drop in MRR may have
-   two distinct causes — shortcut return or signal-to-noise loss at scale
-   — and the probe distinguishes them. On BRENDA+SABIO our probe rules out
+   two distinct causes, shortcut return or signal-to-noise loss at scale,
+   and the probe distinguishes them. On BRENDA+SABIO our probe rules out
    the first (rho ≈ 0 with `null_prot_prior`), pointing at hyperparameter
    scaling rather than an architectural problem. The opposite finding
    would have indicated the recipe needs strengthening, not just retuning.
 
 The recipe is intentionally short. The Phase-1 diagnosis identified a
-single failure mode — protein-level prior fitting — and §6 isolated four
+single failure mode, protein-level prior fitting, and §6 isolated four
 remedies that *jointly* break it. None of the four ingredients alone is
 sufficient (margin alone reaches MRR 0.183 without the sampler;
 hard-negative mining contributes nothing without the margin); all four are
@@ -601,7 +601,7 @@ needed at full strength.
 ## 9. Conclusion
 
 We presented RankBind, a 627k-parameter architecture that breaks the
-protein-level shortcut on BRENDA enzyme–substrate prediction. The core
+protein-level shortcut on BRENDA enzyme-substrate prediction. The core
 observation is methodological: pooled AUC validates the wrong property.
 Against four published baselines, all of which clear pooled AUC by
 exploiting the per-protein label prior, RankBind enforces ligand-conditional
@@ -617,7 +617,7 @@ fixed-pool hard-negative mining as the indicated next-step intervention.
 We distil the empirical findings into an eight-step practitioner recipe
 for diagnosing and breaking the same shortcut on new DTI models or
 datasets. We release code, configurations, three-seed manifests and the
-null-prior probe so that any future enzyme–substrate model can be
+null-prior probe so that any future enzyme-substrate model can be
 audited the same way; the natural next step is to close the
 enzyme-wide gap by scaling the recipe's hard-negative pool with
 $n_{\text{train\_proteins}}$, alongside a cross-dataset probe on ESP and
@@ -640,7 +640,7 @@ the `~/venvs/hieratombind` virtual environment. Module load:
 `GCC/11.3.0 CUDA/12.4.0 Python/3.10.4-GCCcore-11.3.0`. Mean per-seed
 walltime ≈ 1.5 h (v4) or 4 h (Stage-b residue extension).
 
-**Data.** BRENDA enzyme–substrate pairs with curated decoys, available
+**Data.** BRENDA enzyme-substrate pairs with curated decoys, available
 at `data/dataset_with_decoys.csv` (positives) +
 `data/sequences/sequences.csv` (sequences) + AlphaFold structures under
 `~/hpc/structures/`. The protein-stratified split (seed 42, 70/15/15)
@@ -685,32 +685,32 @@ integrating sweep outcomes back into this paper are documented in
 ## References
 
 - Bai, P., Miljković, F., John, B., & Lu, H. (2023). Interpretable bilinear
-  attention network with domain adaptation improves drug–target prediction.
-  *Nature Machine Intelligence*, 5(2), 126–136.
+  attention network with domain adaptation improves drug-target prediction.
+  *Nature Machine Intelligence*, 5(2), 126-136.
 - Chithrananda, S., Grand, G., & Ramsundar, B. (2020). ChemBERTa:
   Large-scale self-supervised pretraining for molecular property
   prediction. *arXiv:2010.09885*.
 - Geirhos, R., Jacobsen, J.-H., Michaelis, C., Zemel, R., Brendel, W.,
   Bethge, M., & Wichmann, F. A. (2020). Shortcut learning in deep neural
-  networks. *Nature Machine Intelligence*, 2(11), 665–673.
+  networks. *Nature Machine Intelligence*, 2(11), 665-673.
 - Harwood, B., Kumar, B. G. V., Carneiro, G., Reid, I., & Drummond, T.
-  (2017). Smart mining for deep metric learning. *ICCV*, 2821–2829.
+  (2017). Smart mining for deep metric learning. *ICCV*, 2821-2829.
 - Huang, K., Xiao, C., Glass, L. M., & Sun, J. (2021). MolTrans: Molecular
-  Interaction Transformer for drug–target interaction prediction.
-  *Bioinformatics*, 37(6), 830–836.
+  Interaction Transformer for drug-target interaction prediction.
+  *Bioinformatics*, 37(6), 830-836.
 - Lin, Z., Akin, H., Rao, R., Hie, B., Zhu, Z., Lu, W., Smetanin, N.,
   Verkuil, R., Kabeli, O., Shmueli, Y., et al. (2023). Evolutionary-scale
   prediction of atomic-level protein structure with a language model.
-  *Science*, 379(6637), 1123–1130.
+  *Science*, 379(6637), 1123-1130.
 - Nguyen, T., Le, H., Quinn, T. P., Nguyen, T., Le, T. D., & Venkatesh, S.
-  (2021). GraphDTA: Predicting drug–target binding affinity with graph
-  neural networks. *Bioinformatics*, 37(8), 1140–1147.
+  (2021). GraphDTA: Predicting drug-target binding affinity with graph
+  neural networks. *Bioinformatics*, 37(8), 1140-1147.
 - Schroff, F., Kalenichenko, D., & Philbin, J. (2015). FaceNet: A unified
-  embedding for face recognition and clustering. *CVPR*, 815–823.
+  embedding for face recognition and clustering. *CVPR*, 815-823.
 - Sohn, K. (2016). Improved deep metric learning with multi-class N-pair
-  loss objective. *NeurIPS*, 1857–1865.
+  loss objective. *NeurIPS*, 1857-1865.
 - Wang, H., et al. (2023). GEMS: A graph-enhanced model with pretrained
-  protein language model embeddings for drug–target interaction
+  protein language model embeddings for drug-target interaction
   prediction. *Bioinformatics*.
 - Wu, C.-Y., Manmatha, R., Smola, A. J., & Krähenbühl, P. (2017). Sampling
-  matters in deep embedding learning. *ICCV*, 2840–2848.
+  matters in deep embedding learning. *ICCV*, 2840-2848.

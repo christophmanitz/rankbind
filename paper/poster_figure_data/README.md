@@ -1,4 +1,4 @@
-# Poster figure data — raw CSV values
+# Poster figure data: raw CSV values
 
 Raw values behind the two paper figures, for re-plotting on a poster.
 Regenerate with: `python -m evaluation.export_poster_figure_data`
@@ -27,7 +27,7 @@ mean attention.
 | File | Figure panel | Contents |
 |------|--------------|----------|
 | `residues_long.csv` | source for all panels | per-residue master table: `attn`, `attn_z` (within-protein z), `pctile` (within-protein attention percentile), `hydropathy`, `aa`, `aa_class`, `is_active`, `is_binding`, `is_signal` |
-| `panel1_class_boxplot_stats.csv` | (1) | box-plot stats of `attn_z` per residue class (acidic→aromatic) |
+| `panel1_class_boxplot_stats.csv` | (1) | box-plot stats of `attn_z` per residue class (acidic to aromatic) |
 | `panel2_functional_residue_percentiles.csv` | (2) | box-plot stats of attention percentile for all / binding-site / active-site residues |
 | `aa_attention_bias.csv` | (a, related fig) | mean within-protein z(attn) per amino acid |
 | `example_track_E2RV69.csv` | bottom track | per-residue attention vs hydropathy along the sequence |
@@ -40,10 +40,10 @@ max` (whiskers = 1.5×IQR, matching matplotlib defaults).
 ### figure10_attn_explainer/annotations/  (Quell-Annotationen)
 
 Die UniProt-Annotationen, aus denen `is_active` / `is_binding` / `is_signal`
-und Panel (c) abgeleitet wurden — 60 gesampelte BRENDA-Proteine.
+und Panel (c) abgeleitet wurden; Grundlage sind 60 gesampelte BRENDA-Proteine.
 
 | File | Contents |
 |------|----------|
-| `functional_residue_annotations.csv` | long: jedes annotierte funktionelle Residuum (`uniprot, position, amino_acid, annotation`) — 875 Residuen (478 Signal peptide, 324 Binding site, 73 Active site) über 54 Proteine |
+| `functional_residue_annotations.csv` | long: jedes annotierte funktionelle Residuum (`uniprot, position, amino_acid, annotation`): 875 Residuen (478 Signal peptide, 324 Binding site, 73 Active site) über 54 Proteine |
 | `feature_region_enrichment.csv` | pro (Protein, Feature-Typ): wie stark die Attention auf der Region angereichert ist (`auc`; 0.5 = Zufall). Quelle für Panel (c) |
-| `uniprot_raw_json/<UNIPROT>.json` | rohe UniProt-Records (Sequenz + alle Feature-Regionen), wie von der REST-API geholt und gecacht — die Quelle der Wahrheit |
+| `uniprot_raw_json/<UNIPROT>.json` | rohe UniProt-Records (Sequenz + alle Feature-Regionen), wie von der REST-API geholt und gecacht, die Quelle der Wahrheit |

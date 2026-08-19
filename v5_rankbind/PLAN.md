@@ -1,4 +1,4 @@
-# Phase 2 — RankBind implementation plan
+# Phase 2: RankBind implementation plan
 
 Status: DRAFT, pre-implementation. Authoritative source for the new Phase 2
 as reframed after the Phase 1 null-baseline probe (see CLAUDE.md and
@@ -37,7 +37,7 @@ positive result; ablations are allowed to fail any):
 implementation of `per_ligand_auc` (evaluation/test_set_eval.py) groups
 by SMILES and requires ≥1 positive *and* ≥1 negative for a given ligand
 in the test split. Empirically, only **4 of 1404 test pairs** qualify
-across every baseline — the Phase-1 numbers (GraphDTA 0.625, GEMS 0.250
+across every baseline; the Phase-1 numbers (GraphDTA 0.625, GEMS 0.250
 etc.) are estimates from n=4 and therefore extremely noisy. Phase 2
 reports per-ligand AUC for continuity but promotes the matrix-level
 ranking metrics (MRR, Hit@K on the 200×200 score matrix) as the primary
@@ -45,7 +45,7 @@ ligand-conditional signal. All six metrics go into `runs_manifest.csv`
 so the paper can choose.
 
 If the primary threshold is not met, the paper reframes as a negative
-result — still publishable *if* the ablation table shows which component
+result, still publishable *if* the ablation table shows which component
 the shortcut survives through.
 
 ---
@@ -54,15 +54,15 @@ the shortcut survives through.
 
 Three components, each independently ablatable (Phase 2 Ziel laut CLAUDE.md):
 
-1. **Protein-balanced sampling** — `ProteinBalancedSampler`. For each
+1. **Protein-balanced sampling**: `ProteinBalancedSampler`. For each
    protein in the train split, yield approximately equal numbers of
    positive and negative pairs per epoch. Implemented as a
    `torch.utils.data.Sampler` that wraps the index list returned by
    `BRENDADataConfig.get_protein_split()`.
-2. **Within-ligand margin loss** — triplet sampler yields `(L, P+, {P-}_k)`
+2. **Within-ligand margin loss**: triplet sampler yields `(L, P+, {P-}_k)`
    tuples with k=4 negatives (same ligand, different protein, label=0).
    Loss: `mean_i max(0, m − s(L, P+) + s(L, P_i-))`, m=1.0.
-3. **Bilinear-only interaction head** — `s(L, P) = f(L)^T M g(P) + b`
+3. **Bilinear-only interaction head**: `s(L, P) = f(L)^T M g(P) + b`
    with M ∈ R^{d_L × d_P}. No MLP path that sees only one side. This
    forces the score to vanish if either encoder output vanishes.
 
@@ -71,7 +71,7 @@ Three components, each independently ablatable (Phase 2 Ziel laut CLAUDE.md):
   `data/esm2_embeddings/<uniprot>.pt`. Mean-pool to a 1280-d vector, then
   a single linear projection to d_P=256.
 - Ligand: ChemBERTa (`DeepChem/ChemBERTa-77M-MLM`), mean-pooled hidden
-  state → 384-d, then linear projection to d_L=256. Reuses the code path
+  state to 384-d, then linear projection to d_L=256. Reuses the code path
   already present in `baselines/adapters/adapter_gems.py`.
 
 **Parameter budget.** ~0.2 M trainable parameters (two projections + M +
@@ -86,9 +86,9 @@ Non-negotiable: reuse `BRENDADataConfig.get_protein_split(seed=42)` from
 `baselines/adapters/common.py`. Do not re-split, do not change seeds.
 
 Inputs:
-- `data/dataset_with_decoys.csv` — label column derived from `is_decoy`.
-- `data/sequences/sequences.csv` — uniprot → sequence mapping.
-- `data/esm2_embeddings/*.pt` — cached per-residue ESM2 embeddings.
+- `data/dataset_with_decoys.csv`: label column derived from `is_decoy`.
+- `data/sequences/sequences.csv`: uniprot to sequence mapping.
+- `data/esm2_embeddings/*.pt`: cached per-residue ESM2 embeddings.
 
 Pre-flight check before any training run: assert every train/val/test
 uniprot has an `esm2_embeddings/<uniprot>.pt`; log count of dropped rows
@@ -148,7 +148,7 @@ both for transparency.
 
 ## 6. Provenance and publishability (the focus of this plan)
 
-Every file produced by this phase — checkpoint, CSV, PNG, npy, JSON —
+Every file produced by this phase: checkpoint, CSV, PNG, npy, JSON,
 must be reconstructible from (a) the frozen split, (b) a config file
 checked into `configs/`, (c) the git commit recorded in its sibling
 `meta.json`. No file is accepted as paper-ready until this round-trip is
@@ -229,9 +229,9 @@ Rule: no number quoted in the paper may be absent from some
 
 ### 6.2 Logging
 
-- `train_log.jsonl` — one line per epoch:
+- `train_log.jsonl`: one line per epoch:
   `{epoch, lr, train_loss, val_bce, val_per_lig_auc, grad_norm, wall_s}`.
-- `sampler_audit.csv` — written at epoch 0: for each protein, count of
+- `sampler_audit.csv`: written at epoch 0: for each protein, count of
   positives and negatives sampled. Enables a one-glance table in the
   paper supplement showing the sampler did what it claims.
 - Deterministic RNGs: set `torch`, `numpy`, `random`, `cuda` seeds from
@@ -239,11 +239,11 @@ Rule: no number quoted in the paper may be absent from some
 
 ### 6.3 Derived artefacts
 
-- `score_matrix_rankbind.npy` — 200×200 over the same (protein,
+- `score_matrix_rankbind.npy`: 200×200 over the same (protein,
   ligand) axis set as all Phase-1 matrices. Reuses the same sampling
   code used by the null matrices (`evaluation/null_baselines.py`), so
   Gini is directly comparable.
-- `test_preds_rankbind.csv` — columns `smiles, uniprot, score, label`
+- `test_preds_rankbind.csv`: columns `smiles, uniprot, score, label`
   (exactly the Phase-1 schema; downstream figures already consume this).
 
 ### 6.4 Central runs manifest
@@ -260,14 +260,14 @@ cites for the ablation table.
 No new metrics are invented; Phase 1 already pinned the metric set.
 Reuse code verbatim:
 
-1. `evaluation/test_set_eval.py` — add a `run_rankbind` function to the
+1. `evaluation/test_set_eval.py`: add a `run_rankbind` function to the
    `RUNNERS` dict. Emits `test_preds_rankbind.csv` +
    `test_summary_rankbind.json`.
-2. `evaluation/null_baselines.py` — already writes the reference null
+2. `evaluation/null_baselines.py`: already writes the reference null
    matrices; rerun is idempotent (seed=42).
-3. `evaluation/cross_model_overlap.py` — add rankbind to its model list.
+3. `evaluation/cross_model_overlap.py`: add rankbind to its model list.
    Produces an updated `cross_model_overlap.csv`.
-4. `evaluation/phase_d_figures.py` — add `'RankBind': .../score_matrix_rankbind.npy`
+4. `evaluation/phase_d_figures.py`: add `'RankBind': .../score_matrix_rankbind.npy`
    to the `MATRIX_FILES` dict. All four figures regenerate automatically.
 5. A new `evaluation/v5_ablation_table.py` reads the runs manifest and
    emits `evaluation/attractor_results/ablation_table.csv` in the exact
@@ -298,13 +298,13 @@ and unfreeze rows are stretch goals.
 
 Map between `TaskList` IDs and this plan:
 
-1. Task #1 — scaffold package + `run_manifest.py` (§4, §6).
-2. Task #2 — `ProteinBalancedSampler` + `sampler_audit.csv` (§2.1, §6.2).
-3. Task #3 — model + bilinear head (§2.3, §5 param budget).
-4. Task #4 — margin loss + training loop (§2.2, §5, §6.2).
-5. Task #5 — wire v5 into `test_set_eval.py` and `phase_d_figures.py` (§7).
-6. Task #6 — ablation sweep; produces `ablation_table.csv` (§8).
-7. Task #7 — SLURM scripts + `collect_v5_runs.py` (§6.4).
+1. Task #1: scaffold package + `run_manifest.py` (§4, §6).
+2. Task #2: `ProteinBalancedSampler` + `sampler_audit.csv` (§2.1, §6.2).
+3. Task #3: model + bilinear head (§2.3, §5 param budget).
+4. Task #4: margin loss + training loop (§2.2, §5, §6.2).
+5. Task #5: wire v5 into `test_set_eval.py` and `phase_d_figures.py` (§7).
+6. Task #6: ablation sweep; produces `ablation_table.csv` (§8).
+7. Task #7: SLURM scripts + `collect_v5_runs.py` (§6.4).
 
 No code is written until this plan is acknowledged.
 
@@ -314,10 +314,10 @@ No code is written until this plan is acknowledged.
 
 | Risk | Mitigation |
 |---|---|
-| Per-ligand AUC does not lift above 0.625 | Paper pivots to "ablation shows which component the shortcut survives through" — still publishable as a cautionary negative. The ablation table is designed to be the main result either way. |
+| Per-ligand AUC does not lift above 0.625 | Paper pivots to "ablation shows which component the shortcut survives through", still publishable as a cautionary negative. The ablation table is designed to be the main result either way. |
 | `null_prot_prior` Gini (~0.995) is so high that Gini-residual is noisy | Report Gini-residual with a bootstrap CI (1000 resamples of the 200×200 matrix); add it to `manifest.json`. |
 | ESM2 mean-pool loses residue detail | Pre-registered: if default fails the thresholds, try attention-pool over residues as a secondary run; log it as `abl_attn_pool`, not as the main model. |
-| Training set is small → margin loss overfits | Early stop on val per-ligand AUC, not BCE. Weight decay on M. Ablation `abl_no_sampler` will also reveal whether overfitting is sampler-driven. |
+| Training set is small; margin loss overfits | Early stop on val per-ligand AUC, not BCE. Weight decay on M. Ablation `abl_no_sampler` will also reveal whether overfitting is sampler-driven. |
 | GPU OOM with k=4 on paula | Gradient accumulation (accum=2) already budgeted in config; fall back to clara (V100) with batch 16. |
 | Reproducibility: someone cannot rerun from the repo | `run_manifest.json` carries config path + git hash; `collect_v5_runs.py` verifies every number in the paper traces to a manifest. CI-style check script in `tests/`. |
 
@@ -348,28 +348,28 @@ session log: `v5_rankbind/PHASE2_LOG.md`. Authoritative numbers:
 ### 12.1 `Global AUC ≥ 0.80` retired as a success gate
 
 The 0.80 threshold in the §1 table is **withdrawn**. RankBind v4 default
-sits at gAUC 0.634 ± 0.010 (3 seeds) — well below 0.80, while
+sits at gAUC 0.634 ± 0.010 (3 seeds), well below 0.80, while
 simultaneously meeting every other threshold by a large margin
 (MRR 0.326, H@10 0.755, Gini-resid −0.210, Jac-null 0.000).
 
 The §10 risk row "Per-ligand AUC does not lift above 0.625" anticipated
 the possibility that the Phase-1 shortcut metric and the Phase-2 ranking
 metric would not co-improve. Phase-2 results confirm exactly that: the
-two are not just decoupled but **anti-correlated** under the v5 recipe
-— `abl_bce_only` (the Phase-1 reproduction) gets gAUC 0.948 with MRR
+two are not just decoupled but **anti-correlated** under the v5 recipe:
+`abl_bce_only` (the Phase-1 reproduction) gets gAUC 0.948 with MRR
 0.015, while v4 default gets gAUC 0.634 with MRR 0.326.
 
 A direct probe was run before retiring the gate. Config
 `probe_bce_aux_v4_bceaux05` (default + BCE auxiliary loss with
 weight 0.5, seed 42) tested whether a small classification head could
 recover gAUC without breaking ranking. Result: gAUC lifted by only
-+0.03 (0.623 → 0.655), nowhere near 0.80. Matrix ranking unchanged.
++0.03 (0.623 to 0.655), nowhere near 0.80. Matrix ranking unchanged.
 Run dir: `results/v5_rankbind/20260423-151536_9ee7fdbfbc_probe_bce_aux_v4_bceaux05/`.
 
 **Why:** under ligand-conditional optimisation on this dataset, the
 0.80 threshold is a dataset ceiling, not a loss-function artefact.
 gAUC is the metric the four Phase-1 baselines passed by exploiting
-protein-level shortcuts (DrugBAN 0.954, MolTrans 0.937 — see CLAUDE.md
+protein-level shortcuts (DrugBAN 0.954, MolTrans 0.937, see CLAUDE.md
 table). Forcing v5 over the same threshold means re-acquiring the
 shortcut.
 
@@ -387,12 +387,12 @@ The §1 table is amended:
 | Matrix Hit@10 | **primary** | ≥ 0.15 | stable across seeds (std 0.095 on default) |
 | Gini-residual | primary | ≤ −0.01 | descriptor of attractor-geometry deviation from prior |
 | Top-10 Jaccard vs `null_prot_prior` | primary | ≤ 0.30 | shortcut-avoidance check |
-| Global AUC | **reported, no gate** | — | retired per §12.1 |
-| Per-ligand AUC | **supplementary** | — | n=4 on test split, demoted; included for Phase-1 continuity only |
+| Global AUC | **reported, no gate** |: | retired per §12.1 |
+| Per-ligand AUC | **supplementary** |: | n=4 on test split, demoted; included for Phase-1 continuity only |
 
 **Why:** matrix-level ranking metrics use the same 200×200 score-matrix
 pool as the Phase-1 null-baseline pivot, so they share its evaluation
-geometry. `per_ligand_auc` is too rauscharm at n=4 to support a
+geometry. `per_ligand_auc` is too noisy at n=4 to support a
 Pass/Fail decision; it remains in `runs_manifest.csv` only for
 continuity with the Phase-1 baselines table in CLAUDE.md.
 
@@ -413,16 +413,16 @@ sweep. The matched-capacity ablation table reads as follows
 Reading:
 
 - **Margin loss is the dominant contribution.** Removing it drops
-  MRR ~8× (0.326 → 0.041) and Gini-residual collapses toward zero.
+  MRR ~8× (0.326 to 0.041) and Gini-residual collapses toward zero.
 - **Balanced sampler is a secondary positive** (+78% MRR, +79% H@10
-  vs. random batches) but smaller than the margin effect.
+  vs random batches) but smaller than the margin effect.
 - **Bilinear vs MLP at matched capacity (627 k params): means
   comparable, std differs by 2.2×.** Bilinear MRR std 0.072, MLP std
-  0.161; bilinear range across seeds 0.247–0.386, MLP range
-  0.130–0.428. Same conclusion holds for H@10 and Gini-residual.
+  0.161; bilinear range across seeds 0.247-0.386, MLP range
+  0.130-0.428. Same conclusion holds for H@10 and Gini-residual.
 - **`abl_bce_only` reproduces the Phase-1 pathology perfectly**:
   gAUC 0.95 with matrix MRR ~0 and Top-10 Jaccard vs null_prot_prior
-  0.59 — the BCE-only head re-learns the protein-level shortcut.
+  0.59; the BCE-only head re-learns the protein-level shortcut.
 
 **Paper framing:** the argument for keeping the bilinear head is
 **seed-to-seed stability + interpretability of the rank-128 + diagonal
@@ -433,18 +433,18 @@ mean parity for a null result.
 ### 12.4 Hard-negative mining (v4) is part of the default
 
 §2.1 specified `cross_protein_implicit` negatives. In execution,
-`v3 → v4` swapped this for **online hard-negative mining**: at each
-epoch start, `TripletCollator.refresh_scores(model, device)` caches
+the v3 to v4 change swapped this for **online hard-negative mining**: at
+each epoch start, `TripletCollator.refresh_scores(model, device)` caches
 the (positive-ligand × train-protein) score matrix, and for each anchor
 samples k=4 negatives from the top `hard_pool_size=50` non-positive
 proteins by current score. Config flag:
 `triplet.negative_sampling = "hard"` in `default.json`.
 
-Lift over v3 single-seed (no hard negs): MRR 0.201 → 0.326 (+62%),
-H@10 0.559 → 0.755 (+35%), Gini-residual −0.124 → −0.210 (−69%),
+Lift over v3 single-seed (no hard negs): MRR 0.201 to 0.326 (+62%),
+H@10 0.559 to 0.755 (+35%), Gini-residual −0.124 to −0.210 (−69%),
 all at the same parameter budget (627 k). Diagnostic
-`pos_above_neg_max` in `train_log.jsonl` rises 0.92 → 0.97 over the
-first 32 epochs in v4 default — the model is learning to separate
+`pos_above_neg_max` in `train_log.jsonl` rises 0.92 to 0.97 over the
+first 32 epochs in v4 default; the model is learning to separate
 its own current hardest confusers.
 
 This component is now part of the default recipe, not an ablation.
@@ -479,11 +479,11 @@ mean-pooled to a single 384-d vector). The original Phase 4 assumed a
 HieratomBind v3-style residue-level base. Phase 4 here is therefore
 broken into three stages with explicit decision-gates between them.
 
-### 13.1 Stage (c) — v4 failure-case diagnosis
+### 13.1 Stage (c): v4 failure-case diagnosis
 
 **Question:** Do v4's worst-ranked test ligands cluster around chemical
 classes that are plausibly atom-level-conditioned (organophosphates,
-phenylpropanoids, polyols, …)?
+phenylpropanoids, polyols, ...)?
 
 **Steps:**
 1. Load `score_matrix_rankbind.npy` + axes from the v4 default seed=42 run.
@@ -496,18 +496,18 @@ phenylpropanoids, polyols, …)?
    bottom-quartile failure-rate by class).
 5. Memo `v4_failure_diagnosis.md` with go/no-go.
 
-**Decision-Gate (c → b):**
-- ✅ **Pass:** ≥30% of bottom-MRR-quartile failures fall in 1–2
+**Decision-Gate (c to b):**
+- **Pass:** ≥30% of bottom-MRR-quartile failures fall in 1-2
   chemically-coherent atom-conditioned classes, OR a clear
-  `n_heavy_atoms ↑ ⇒ rank ↑` correlation. Phase 4 has a story.
-- ❌ **Fail:** failures chemically flat, no size correlation. **No
+  `n_heavy_atoms` and `rank` correlation correlation. Phase 4 has a story.
+- **Fail:** failures chemically flat, no size correlation. **No
   atom-level work.** Either Phase 5 (cross-dataset) or stop here.
-- ⚠️ **Mixed:** no class cluster but residue-level interpretability
+- **Mixed:** no class cluster but residue-level interpretability
   arguments still hold. Do (b), skip (a).
 
 **Effort:** ~1 day, no cluster time, no model-code changes.
 
-### 13.2 Stage (b) — Residue attention-pool
+### 13.2 Stage (b): Residue attention-pool
 
 **Question:** Does a learned attention-pool over ESM2 residues lift
 matrix MRR/H@10 over mean-pool, AND produce interpretable
@@ -530,19 +530,19 @@ residues?
 runs. Tag `v5_attnpool_s{42,7,1337}`. Aggregate via existing
 `scripts/aggregate_multiseed.py`.
 
-**Decision-Gate (b → a):**
-- ✅ **Pass:** matrix MRR mean-lift ≥+0.05 absolute over v4 default
-  (0.326 → ≥0.376), OR attention-weights concentrate on <20% of
-  residues with qualitative pocket overlap on 2–3 spot-checked
+**Decision-Gate (b to a):**
+- **Pass:** matrix MRR mean-lift ≥+0.05 absolute over v4 default
+  (0.326 to ≥0.376), OR attention-weights concentrate on <20% of
+  residues with qualitative pocket overlap on 2-3 spot-checked
   proteins.
-- ❌ **Fail:** no MRR lift AND flat weights. Atom-level on top has no
+- **Fail:** no MRR lift AND flat weights. Atom-level on top has no
   foundation. Stop at (b); paper includes (b) as a negative-result
   ablation.
-- ⚠️ **Mixed:** small lift but flat weights. Still proceed to (a) —
+- **Mixed:** small lift but flat weights. Still proceed to (a);
   top-K residue selection can use raw activations rather than learned
   weights.
 
-**Effort:** ~3–5 days, 6 cluster runs, 200–400 LOC.
+**Effort:** ~3-5 days, 6 cluster runs, 200-400 LOC.
 
 **Risks:**
 - Memory: per-batch 4 × max_L × 1280 × float32. At max_L=1500 ≈ 30 MB,
@@ -551,11 +551,11 @@ runs. Tag `v5_attnpool_s{42,7,1337}`. Aggregate via existing
 - Length-bucketed batching not needed at the ~470-pair training-epoch
   scale.
 
-### 13.3 Stage (a) — Adaptive atom-level gating
+### 13.3 Stage (a): Adaptive atom-level gating
 
 Four sub-stages, each with its own gate.
 
-**(a.1) Atom-graph pipeline · ~3–5 days**
+**(a.1) Atom-graph pipeline; ~3-5 days**
 - Parse `~/hpc/structures/{uniprot}.pdb` with biopython, extract heavy
   atoms.
 - Per protein: identify top-K=8 residues from (b)-attention; collect
@@ -563,43 +563,43 @@ Four sub-stages, each with its own gate.
 - Atom graph: nodes = atoms (features: element 1-hot, hybridization,
   formal charge, in-residue index), edges = covalent bonds (PDB
   CONECT) + spatial within 4 Å.
-- One-time precompute → `data/atom_graphs/{uniprot}.pt`. Script
+- One-time precompute into `data/atom_graphs/{uniprot}.pt`. Script
   `scripts/precompute_atom_graphs.py`.
-- Gate (a.1 → a.2): ≥90% of train+test proteins have a valid atom
+- Gate (a.1 to a.2): ≥90% of train+test proteins have a valid atom
   graph. If <90%, investigate missing PDBs before continuing.
 
-**(a.2) Atom GNN module · ~3–5 days**
+**(a.2) Atom GNN module; ~3-5 days**
 - 2-layer GCN or GAT, hidden=64. Pool to `[d_prot]` matched to
   `ProteinProjector` output dim.
 - New file `v5_rankbind/atom_model.py`. Unit-test: forward pass on a
   dummy graph, gradient-flow check.
 
-**(a.3) Confidence gate + end-to-end composition · ~3–5 days**
+**(a.3) Confidence gate + end-to-end composition; ~3-5 days**
 - Confidence signal: entropy of (b)-attention weights (low entropy =
-  confident on a few residues, high = uncertain → open gate). Fallback:
+  confident on a few residues, high = uncertain, open gate). Fallback:
   `|s_res − batch_mean|`.
 - Gate: `g = sigmoid(MLP(confidence))` with a small 1×16×1 MLP.
 - Final score: `s = g · s_atom + (1−g) · s_res`.
 - Loss: existing margin loss on `s` plus `λ_gate · L1(g)` regulariser.
   λ-sweep {0.001, 0.01, 0.1}, start 0.01.
 
-**(a.4) Training, ablations, multi-seed · ~5–7 days**
+**(a.4) Training, ablations, multi-seed; ~5-7 days**
 - Curriculum: residue-only pre-training is already produced by Stage
   (b); load that checkpoint, then unfreeze atom module.
 - Configs: `default_atom_v6.json`, `abl_no_gate.json` (g=1 fixed),
   `abl_atom_only.json` (s_res ignored), λ-sweep configs.
 - 3 seeds × 4 configs = 12 cluster runs. Tag `v6_atom_s{42,7,1337}`.
 
-**Decision-Gate (a → paper):**
-- ✅ **Pass:** on the failure-case ligands identified in (c), MRR
+**Decision-Gate (a to paper):**
+- **Pass:** on the failure-case ligands identified in (c), MRR
   rises by ≥+0.10 versus v4 default, AND overall MRR does not
   regress, AND gate distribution shows sample-specific activation
-  (not collapsed to always-on or always-off — pre-registered risk in
+  (not collapsed to always-on or always-off; pre-registered risk in
   §10).
-- ❌ **Fail:** no lift on failure-cases OR gate collapse. Publish as
+- **Fail:** no lift on failure-cases OR gate collapse. Publish as
   negative ablation; v4 (or v5b) remains the headline run.
 
-**Effort:** 2–4 weeks total, ~12 cluster runs, 600–1000 LOC.
+**Effort:** 2-4 weeks total, ~12 cluster runs, 600-1000 LOC.
 
 ### 13.4 Reporting hygiene per stage
 
@@ -615,8 +615,8 @@ Four sub-stages, each with its own gate.
 | Stage | Duration | Cluster runs | Stop probability |
 |---|---|---|---|
 | (c) | 1 day | 0 | 30% (no atom-conditioned cluster found) |
-| (b) | 3–5 days | 6 | 25% (attn-pool no lift + flat weights) |
-| (a) | 2–4 weeks | ~12 | 30% (gate collapse or no failure-case lift) |
+| (b) | 3-5 days | 6 | 25% (attn-pool no lift + flat weights) |
+| (a) | 2-4 weeks | ~12 | 30% (gate collapse or no failure-case lift) |
 
 Expected probability of executing all three stages to completion: ~37%.
 The decision-gates are designed so that we abandon early if the
@@ -634,29 +634,29 @@ plan. Authoritative session log: `v5_rankbind/PHASE2_LOG.md`
 `evaluation/attractor_results/phase2_rankbind_multiseed.csv`
 (now includes the `abl_attn_pool` row).
 
-### 14.1 Stage (c) — Mixed signal, proceed to (b)
+### 14.1 Stage (c): Mixed signal, proceed to (b)
 
 n=34 positive pairs in the v4 default (seed=42) test split. Bottom
 quartile (rank ≥ 14, n=9). SMARTS classification across 10 chemical
 families.
 
 - **Polyhydroxy** (sugars / glycosides): 4 of 8 in test fall in
-  bottom-Q (50%). Biologically coherent — glycoside hydrolases /
+  bottom-Q (50%). Biologically coherent; glycoside hydrolases /
   glycosyltransferases distinguish substrates by stereochemistry that
   ESM2 + ChemBERTa mean-pools both discard. **Plausibly atom-level
-  conditioned.** But n=8 is too thin for a 2–4 week commitment.
+  conditioned.** But n=8 is too thin for a 2-4 week commitment.
 - **OTHER** (no SMARTS hit, n=6): 4 of 6 in bottom-Q. Disqualified as
-  a SMARTS-coverage artefact — 4 of 6 are aryl esters or amide
+  a SMARTS-coverage artefact: 4 of 6 are aryl esters or amide
   enol-tautomers that broader patterns would have matched.
 - **Spearman ρ(n_heavy_atoms, rank) = 0.252.** Below the 0.4
   threshold; size-correlation arm fails.
 
-§13.1 verdict: **⚠️ Mixed**. Per the gate's mixed-clause rule,
+§13.1 verdict: **Mixed**. Per the gate's mixed-clause rule,
 proceed to Stage (b), defer Stage (a) until further evidence.
 
 Memo: `evaluation/attractor_results/v4_failure_diagnosis.md`.
 
-### 14.2 Stage (b) — MRR-arm passes, interpretability arm reveals near-uniform attention
+### 14.2 Stage (b): MRR-arm passes, interpretability arm reveals near-uniform attention
 
 3-seed (42, 7, 1337) sweep over `abl_attn_pool`, tag `v5b`. New module
 `ResidueAttentionPool` (single-head learned query + LayerNorm,
@@ -674,11 +674,11 @@ the existing `ProteinProjector`.
 | gAUC | 0.634 ± 0.010 | 0.659 ± 0.028 | +0.025 |
 | Gini-residual | −0.210 ± 0.022 | −0.216 ± 0.028 | ≈ |
 
-§13.2 MRR-arm gate (≥+0.05 absolute over v4): **✅ Pass by 2× the
+§13.2 MRR-arm gate (≥+0.05 absolute over v4): **pass by 2× the
 threshold.**
 
 **Stability caveat:** seed-range 0.316 / 0.405 / 0.559 (s42 / s1337 / s7).
-Std grew 1.7× (0.072 → 0.123); s7 is an outlier-high. The mean lift is
+Std grew 1.7× (0.072 to 0.123); s7 is an outlier-high. The mean lift is
 real but variance widens.
 
 **Interpretability arm (60 sampled proteins, all 3 seeds):**
@@ -702,10 +702,10 @@ pocket selection; the dominant effect is LayerNorm-then-pool.
 
 Memo: `evaluation/attractor_results/attn_weight_inspection.md`.
 
-### 14.3 Stage (a) — Deferred indefinitely
+### 14.3 Stage (a): Deferred indefinitely
 
-§13.3 specified Stage (a) as: top-K=8 residues from attention →
-4 Å-neighbourhood atom graph → 2-layer GNN → confidence-gated
+§13.3 specified Stage (a) as: top-K=8 residues from attention,
+4 Å-neighbourhood atom graph, 2-layer GNN, confidence-gated
 combination with the residue-level score.
 
 The (b) inspection empirically blocks this mechanism:
@@ -717,12 +717,12 @@ The (b) inspection empirically blocks this mechanism:
 
 A redesigned **Option A** (pocket selection from AlphaFold +
 fpocket / structural priors instead of attention) is the only sound
-path forward. Estimated cost ~3–4 weeks of new pipeline work.
+path forward. Estimated cost ~3-4 weeks of new pipeline work.
 **Not committed.**
 
 The §13-stage-(a) gate's "gate collapse or no failure-case lift" exit
 condition (anticipated stop probability 30%) is not what triggered the
-defer here — instead, the *upstream* (b) interpretability finding
+defer here; instead, the *upstream* (b) interpretability finding
 removed the necessary input to (a). PLAN.md §13's risk-modelling did
 not anticipate this specific failure mode; recording it here so future
 plans can.
@@ -732,13 +732,13 @@ plans can.
 The Phase-4 deferral does not stall the project. The remaining work,
 in order of marginal value:
 
-1. **Phase 5 — cross-dataset probe.** Train RankBind on BRENDA, evaluate
+1. **Phase 5: cross-dataset probe.** Train RankBind on BRENDA, evaluate
    on a second enzyme-substrate corpus (kcat / TurNuP / DLKcat /
    ESPnet, scoping in progress). Tests whether Stage-(b)'s +0.10 MRR
    lift transfers under distribution shift. The test of the thesis,
    not just an ablation. PLAN.md §10 already pre-registered this risk
    row.
-2. **Paper draft.** Phase-1 → Phase-2 → Stage-(b) is a coherent
+2. **Paper draft.** Phase-1 + Phase-2 + Stage-(b) is a coherent
    empirical story even without (a). Working title remains *RankBind:
    Protein-Invariant Contrastive Learning for Ligand-Conditional DTI*.
    §-level addition: residue-level encoder converges across seeds on a
@@ -756,7 +756,7 @@ in order of marginal value:
 
 Pre-conditions for reopening (a):
 - A specific atom-level failure case is *quantitatively* diagnosed
-  (e.g. polyhydroxy MRR ≤ 0.10 with n ≥ 30 — currently n=8 in test).
+  (e.g. polyhydroxy MRR ≤ 0.10 with n ≥ 30; currently n=8 in test).
 - AND a structural pocket source is available (AlphaFold confidence
   ≥ 70 + fpocket scoring) for ≥90% of train+test proteins.
 - AND the (b) Option-A redesign (pocket from structure, not from
@@ -778,4 +778,3 @@ record; an Option-A version would warrant its own §15.
   `v5_rankbind/configs/abl_attn_pool.json`
 - Session log: `v5_rankbind/PHASE2_LOG.md` (2026-04-27 section is the
   current state).
-
