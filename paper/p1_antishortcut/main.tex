@@ -22,7 +22,7 @@
 \usepackage{lmodern}
 \usepackage{xspace}
 
-\graphicspath{{figures/}}
+\graphicspath{{../figures/}{figures/}}
 
 % ---- Macros ---------------------------------------------------------------
 \newcommand{\method}{RankBind\xspace}
@@ -65,48 +65,32 @@ Ligand-Conditional Drug--Target Interaction}}
 \begin{abstract}
 Drug--target interaction (DTI) models on enzyme--substrate benchmarks are
 usually validated with \emph{pooled} discrimination metrics such as global
-AUC. On the BRENDA enzyme--substrate corpus, four published DTI baselines
-(DrugBAN, MolTrans, GraphDTA, GEMS) reach pooled AUC between $0.63$ and
-$0.95$, but their per-ligand ranking AUC is at or \emph{below} chance,
-and their attractor distribution is indistinguishable from a data-blind
-protein-prior baseline (Gini $\approx 0.995$ in every case). In this
-regime pooled AUC certifies a protein-level shortcut rather than
-ligand-conditional binding. We introduce \method, a $627$k-parameter
-architecture built from four ingredients: protein-balanced sampling,
-a within-ligand margin loss, a low-rank bilinear interaction head,
-and online hard-negative mining. Across three seeds on the
-protein-stratified split, \method lifts matrix MRR from $\approx\!0.06$
-(BCE control) to $0.326 \pm 0.072$, Hit@10 to $0.755 \pm 0.095$, and
-reduces top-10 attractor overlap with the data-blind prior from
-$0.54$--$0.67$ down to $0.000$. A residue-level extension based on a
-learned attention pool over per-residue ESM2 embeddings adds another
-$+0.10$ absolute MRR for $+0.6\%$ parameters. An attention-weight audit
-shows that the lift comes from per-residue normalisation, not from sharp
-pocket selection; the rank order of attention weights is nevertheless
-reproducible across seeds (Spearman $\rho = 0.86$). A transferability
-probe on three enzyme-wide BRENDA+SABIO datasets at $50\times$ the scale
-($43$--$57$k pairs) shows the anti-shortcut property of the recipe
-survives the shift (top-10 Jaccard with the data-blind prior stays at
-$0.008$--$0.017$), even though absolute ranking quality drops at the
-BRENDA-200-tuned pool size; a pre-registered single-seed sweep confirms
-this drop is a hyperparameter-coverage artefact, recoverable by scaling
-the hard-negative pool with the train-protein count (peak \matmrr\ up to
-$0.344$). On ESP, the one independent enzyme--substrate corpus, the
-scaled recipe delivers \method's strongest ranking of all (matrix MRR
-$0.387$, above the BRENDA-200 headline) while staying shortcut-free
-(top-10 Jaccard with the prior $0.000$). On three independent kinase affinity benchmarks the recipe's
-anti-shortcut behaviour carries over --- matching the BRENDA ranking on
-BindingDB --- though the ranking lift is dataset-dependent; the skewed
-protein prior that enables the shortcut is present on all three
-(Gini $\approx 0.995$), not a BRENDA artefact. Scoring every dataset
-against a matched shortcut-prone BCE control confirms the diagnosis
-generalises: the control reproduces the Phase-1 dissociation on all
-seven corpora (pooled AUC $0.84$--$0.98$ at near-chance ranking), and
-\method\ circumvents it on every catalytic enzyme dataset, lifting
-matrix MRR to $7$--$25\times$ the control's. We summarise the findings in an
-eight-step recipe for diagnosing and breaking protein-level shortcuts
-in DTI models. Code, configurations, and three-seed manifests are
-released for reproducibility.
+AUC. On the BRENDA corpus, four published baselines (DrugBAN, MolTrans,
+GraphDTA, GEMS) reach pooled AUC between $0.63$ and $0.95$, yet their
+\emph{within-ligand} ranking AUC is at or below chance and their attractor
+distribution is indistinguishable from a data-blind protein-prior baseline
+(Gini $\approx 0.995$ in every case). In this regime pooled AUC certifies a
+protein-level \emph{shortcut} rather than ligand-conditional binding. We
+introduce \method, a $627$k-parameter architecture combining protein-balanced
+sampling, a within-ligand margin loss, a low-rank bilinear interaction head,
+and online hard-negative mining. Across three seeds on the protein-stratified
+split, \method drives the top-10 attractor overlap with the data-blind prior
+from $0.54$--$0.67$ down to $0.000$ while lifting matrix MRR from
+$\approx\!0.06$ (a matched BCE control) to $0.326 \pm 0.072$ with a mean-pooled
+protein encoder and to its best of $0.427 \pm 0.123$ with a learned
+residue-level attention pool ($+0.6\%$ parameters); an audit shows the residue
+gain is per-residue normalisation, not pocket selection. The
+anti-shortcut property generalises beyond BRENDA-200: across seven corpora
+(four enzyme--substrate, three kinase-affinity) a matched shortcut-prone BCE
+control reproduces the pooled-vs-ranking dissociation everywhere (pooled AUC
+$0.84$--$0.98$ at near-chance ranking), while \method\ circumvents it on every
+catalytic-enzyme dataset (matrix MRR $7$--$25\times$ the control). On ESP, the
+one independent enzyme--substrate corpus, \method\ (with the same residue-pool
+encoder) ranks best of the seven cross-corpus datasets (matrix MRR $0.387$)
+while staying shortcut-free. We distil the
+findings into an eight-step recipe for diagnosing and breaking protein-level
+shortcuts in DTI models, and release code, configurations, and three-seed
+manifests for reproducibility.
 \end{abstract}
 
 % ===========================================================================
@@ -129,23 +113,15 @@ the ligand contributing only a secondary signal. The shortcut is
 invisible to pooled AUC but is immediately exposed by ranking metrics
 computed \emph{within} a ligand.
 
-Our investigation began with a stronger hypothesis. Following recent
-discussions of \emph{universal attractor bias}, we conjectured that DTI
-score matrices on BRENDA would exhibit a Gini coefficient near $1.0$ as
-evidence of pathological convergence onto a small set of attractor
-proteins. Empirically the Gini coefficient is indeed $\approx 0.995$
-for all four baselines. The catch: a data-blind classifier (\nullprior)
-that scores each pair using only the per-protein training positive rate
-produces the \emph{same} Gini. The metric reflects the marginal label
-geometry of the dataset, not a learned pathology. We therefore drop
-Gini as a primary metric and re-frame the problem.
-
-The actual pathology, surfaced by the same null-baseline probe, is a
-\emph{rank} pathology. The four baselines pass pooled AUC by learning
-protein-level priors, while their within-ligand ranking sits at or
-below chance. The Top-10 Jaccard of attractor proteins between three of
-the four baselines and \nullprior is $0.54$--$0.67$: two thirds of the
-most-attended proteins are recoverable from a model that never even
+A natural first hypothesis --- that these score matrices are pathological in
+the sense of a near-degenerate Gini $\approx 1$ ``attractor'' distribution ---
+turns out to measure the data, not the model: the data-blind \nullprior\
+reproduces the same Gini $\approx 0.995$, so we drop Gini as a primary metric.
+The real pathology, surfaced by the same probe, is a \emph{rank} pathology.
+The four baselines pass pooled AUC by learning protein-level priors while
+their within-ligand ranking sits at or below chance, and the top-10 attractor
+Jaccard between three of the four and \nullprior\ is $0.54$--$0.67$: two thirds
+of their most-attended proteins are recoverable from a classifier that never
 looks at the ligand.
 
 \paragraph{Contributions.}
@@ -156,19 +132,21 @@ looks at the ligand.
         \emph{ligand-conditional} matrix MRR / Hit@$K$ is the primary
         metric needed to tell genuine DTI learning apart from shortcut
         exploitation (\Cref{sec:diagnosis}).
-  \item \textbf{\method}, a $627$k-parameter architecture combining
-        protein-balanced sampling, a within-ligand margin loss, a
-        low-rank bilinear head, and online hard-negative mining.
-        Matched-capacity ablations across three seeds show that all
-        four ingredients are needed, and that a BCE configuration
-        reproduces the Phase-1 pathology even with the same encoders
-        and split (\Cref{sec:method,sec:results}).
-  \item A \textbf{residue-level extension} (Stage-b) using learned
-        attention over per-residue ESM2 embeddings that adds $+0.10$
-        absolute MRR at $+0.6\%$ parameters, together with an
-        attention-weight audit pointing at per-residue normalisation
-        (rather than sharp pocket selection) as the active mechanism
-        (\Cref{sec:residue}).
+  \item \textbf{\method}, an architecture combining protein-balanced
+        sampling, a within-ligand margin loss, a low-rank bilinear head,
+        and online hard-negative mining, with a choice of protein encoder.
+        Its \textbf{best configuration} --- a learned residue-level
+        attention pool over per-residue ESM2 --- reaches matrix MRR
+        $0.427 \pm 0.123$ across three seeds, against $\approx\!0.06$ for a
+        matched BCE control. Matched-capacity ablations show all four
+        ingredients are needed, and that a BCE configuration reproduces the
+        shortcut pathology with the same encoders and split
+        (\Cref{sec:method,sec:results}).
+  \item An \textbf{attention-weight audit} showing that the residue-pool
+        gain is per-residue normalisation rather than sharp pocket
+        selection --- bounding the interpretability of the learned
+        attention and motivating a structural follow-up
+        (\Cref{sec:residue,sec:attn}).
   \item A \textbf{transferability probe} on three enzyme-wide
         BRENDA+SABIO datasets at $50\times$ the scale, showing the
         anti-shortcut property of the recipe is preserved (top-10
@@ -176,7 +154,7 @@ looks at the ligand.
         Spearman $\le 0$). The findings are distilled into an
         \textbf{eight-step recipe} for diagnosing and breaking the
         same shortcut on a new model or dataset
-        (\Cref{sec:discussion}).
+        (\Cref{sec:generalisation,sec:discussion}).
 \end{enumerate}
 
 % ===========================================================================
@@ -225,7 +203,7 @@ are standard in metric learning, with closely related contrastive and
 triplet objectives in self-supervised
 learning~\citep{oord2018cpc,chen2020simclr}. Their use here is unusual
 in two ways: negatives are drawn from \emph{a different anchor type}
-(proteins, not ligands), and at the residue-level extension
+(proteins, not ligands), and at the residue attention pool
 hard-negative mining requires chunked re-encoding through a frozen
 protein-language-model backbone, which we describe in
 \Cref{sec:residue}.
@@ -242,7 +220,7 @@ the GEMS release; the BRENDA+SABIO transferability probe in
 the parent project's data pipeline.
 
 % ===========================================================================
-\section{The Phase-1 Diagnosis}
+\section{Diagnosis: pooled AUC certifies a protein-level shortcut}
 \label{sec:diagnosis}
 
 \subsection{Setup}
@@ -294,7 +272,7 @@ metrics; all three are well-defined on every test ligand.
 
 \begin{table}[t]
 \centering
-\caption{Phase-1 baselines on the BRENDA protein-stratified test pool.
+\caption{published baselines on the BRENDA protein-stratified test pool.
 Pooled AUC certifies the shortcut; per-ligand AUC and Top-10 attractor
 overlap with the data-blind prior expose it. The test-pair \plauc rests
 on $n=4$; the matrix \plauc evaluates the same metric on the full
@@ -322,7 +300,7 @@ GEMS        & $0.633$ & $0.250$ & $0.514$ & $0.67$ & $0.995$ \\
 
 \subsection{Implications for evaluation}
 
-The Phase-1 diagnosis motivates a small but consequential change to
+The diagnosis motivates a small but consequential change to
 the evaluation protocol. (i) \matmrr{} and matrix Hit@$K$ on the
 $200 \times 200$ pool are the primary success metrics. (ii) \gauc{}
 is \emph{reported} for continuity but \emph{retired as a success
@@ -336,11 +314,29 @@ giving up high values of (ii).
 \label{sec:method}
 
 \method consists of frozen pretrained encoders and four trainable
-ingredients. Ligands are embedded with ChemBERTa~\citep{chithrananda2020chemberta}
-($768$-d) and proteins with ESM2~\citep{lin2023esm2} ($1280$-d
-mean-pooled in the v4 default; per-residue in the Stage-b extension of
+ingredients; \Cref{fig:arch} gives the overview. Ligands are embedded with ChemBERTa~\citep{chithrananda2020chemberta}
+($384$-d) and proteins with ESM2~\citep{lin2023esm2} ($1280$-d
+mean-pooled in the v4 default; per-residue in the residue attention pool of
 \Cref{sec:residue}). All encoders are frozen; the trainable budget is
 $627{,}201$ parameters.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{fig_v5_model_diagram.pdf}
+  \caption{Architecture of \method. The ligand (SMILES) and protein
+  (amino-acid sequence) are encoded by frozen language models---ChemBERTa
+  and ESM2---and mean-pooled to fixed vectors. Two trainable projectors,
+  each a two-layer MLP (drawn as the connection fans), map both into a
+  shared $256$-d space, $f(L)$ and $g(P)$. The bilinear head scores their
+  interaction through a learned low-rank-plus-diagonal matrix $M$ as
+  $s(L,P)=f(L)^{\top} M\, g(P)+b$; the only ligand-free term is the scalar
+  bias $b$, so the head has no additive protein-only pathway. Training uses
+  the margin objective with the three training-time anti-shortcut
+  mechanisms---protein-balanced sampling (\#1), within-ligand margin loss
+  (\#2) and online hard-negative mining (\#4); gradients update only the
+  projectors $f$, $g$ and the matrix $M$.}
+  \label{fig:arch}
+\end{figure}
 
 \subsection{Protein-balanced sampling}
 We replace the standard random batch with a sampler that yields, per
@@ -398,7 +394,7 @@ Removing the margin loss collapses MRR by $\sim\!8\times$ and restores
 pooled AUC to $0.95$ (the shortcut returns). Removing the sampler
 costs $-44\%$ MRR. The bilinear head ties the MLP head in mean MRR but
 more than halves its seed-to-seed variance. And a BCE configuration
-with random batches and the MLP head reproduces the Phase-1 pathology
+with random batches and the MLP head reproduces the shortcut pathology
 in full ($\matmrr \approx 0.015$, $\gauc = 0.95$, Top-10 Jaccard with
 \nullprior $= 0.587$) using the same encoders and data split as
 \method.
@@ -432,7 +428,7 @@ this pool.
 \end{itemize}
 
 \subsection{Pre-registered thresholds}
-Following the Phase-2 plan, we pre-register four success thresholds:
+We pre-register four success thresholds:
 $\matmrr \geq 0.10$, $\text{Hit@10} \geq 0.15$, Gini-residual
 $\leq -0.01$, and Jaccard-vs-prior $\leq 0.30$. The originally listed
 $\gauc \geq 0.80$ threshold is retired (\Cref{sec:gauc}).
@@ -440,11 +436,11 @@ $\gauc \geq 0.80$ threshold is retired (\Cref{sec:gauc}).
 \subsection{Implementation}
 All runs use a single NVIDIA A100 GPU. Mean training time is
 $\approx\!1.5$\,h per seed for v4 and $\approx\!4$\,h per seed for the
-residue-level Stage-b. Three seeds $\{42, 7, 1337\}$ are run per
+residue attention pool. Three seeds $\{42, 7, 1337\}$ are run per
 configuration; means and standard deviations across seeds are reported.
 A \texttt{manifest.json} per run pins the resolved configuration, git
 hash, and SHA-256 of the best-model checkpoint and score matrix. Total
-of $18$ runs ($15$ v4 ablations $+$ $3$ Stage-b seeds).
+of $18$ runs ($15$ v4 ablations $+$ $3$ residue-pool seeds).
 
 % ===========================================================================
 \section{Results}
@@ -458,9 +454,12 @@ across all configurations.
 \begin{table}[t]
 \centering
 \caption{Three-seed means $\pm$ standard deviation across seeds
-$\{42, 7, 1337\}$. ``biln-128'' indicates a bilinear head of rank
-$r=128$; total model size $627{,}201$ parameters. The bottom row is
-the residue-level extension of \Cref{sec:residue}.}
+$\{42, 7, 1337\}$ on the BRENDA-200 $200\times200$ pool. The two \method\
+configurations (top) differ only in the protein encoder --- mean-pool vs.\ a
+learned residue-level attention pool (\Cref{sec:residue}); the residue pool is
+the best. ``biln-128'' is a bilinear head of rank $r=128$ ($627{,}201$
+parameters). The lower block ablates the mean-pool recipe one ingredient at a
+time; the BCE control is the in-package shortcut re-creation.}
 \label{tab:headline}
 \footnotesize
 \setlength{\tabcolsep}{4pt}
@@ -469,41 +468,43 @@ the residue-level extension of \Cref{sec:residue}.}
 \toprule
 Config & Head & MRR & H@5 & H@10 & Gini-res. & Jac.-null & gAUC \\
 \midrule
-\textbf{default v4}      & biln-128 &
-\good{0.326$\pm$0.072} & \good{0.598$\pm$0.090} & \good{0.755$\pm$0.095} &
-\good{$-0.210\pm$0.022} & \good{0.035$\pm$0.030} & 0.634$\pm$0.010 \\
-abl\_no\_sampler         & biln-128 &
-0.183$\pm$0.060 & 0.284$\pm$0.177 & 0.422$\pm$0.187 &
-$-0.074\pm$0.030 & 0.037$\pm$0.064 & 0.630$\pm$0.038 \\
-abl\_no\_bilinear        & MLP-concat &
-0.243$\pm$0.161 & 0.363$\pm$0.273 & 0.520$\pm$0.312 &
-$-0.182\pm$0.136 & 0.018$\pm$0.030 & 0.660$\pm$0.040 \\
-abl\_no\_margin          & biln-128 &
-\bad{0.041$\pm$0.023} & \bad{0.059$\pm$0.078} & \bad{0.098$\pm$0.061} &
-\bad{$-0.043\pm$0.015} & 0.018$\pm$0.030 & \good{0.948$\pm$0.028} \\
-abl\_bce\_only           & MLP-concat &
-\bad{0.015$\pm$0.002} & \bad{0.000$\pm$0.000} & \bad{0.000$\pm$0.000} &
-\bad{$-0.002\pm$0.001} & \bad{0.587$\pm$0.137} & \good{0.948$\pm$0.030} \\
-\midrule
-\textbf{abl\_attn\_pool v5b} & biln-128 + attn &
+\textbf{\method (residue pool)} & biln-128 + attn &
 \good{\textbf{0.427$\pm$0.123}} & \good{\textbf{0.686$\pm$0.119}} &
 \good{\textbf{0.814$\pm$0.103}} &
-\good{$-0.216\pm$0.028} & \good{0.018$\pm$0.030} & 0.659$\pm$0.028 \\
+\good{$-0.216\pm$0.028} & \good{0.000$\pm$0.000} & 0.659$\pm$0.028 \\
+\textbf{\method (mean-pool)} & biln-128 &
+\good{0.326$\pm$0.072} & \good{0.598$\pm$0.090} & \good{0.755$\pm$0.095} &
+\good{$-0.210\pm$0.022} & \good{0.035$\pm$0.030} & 0.634$\pm$0.010 \\
+\midrule
+\multicolumn{8}{l}{\emph{Ablations of the mean-pool recipe (remove one ingredient):}}\\
+\quad $-$ balanced sampler & biln-128 &
+0.183$\pm$0.060 & 0.284$\pm$0.177 & 0.422$\pm$0.187 &
+$-0.074\pm$0.030 & 0.037$\pm$0.064 & 0.630$\pm$0.038 \\
+\quad bilinear $\to$ MLP head & MLP-concat &
+0.243$\pm$0.161 & 0.363$\pm$0.273 & 0.520$\pm$0.312 &
+$-0.182\pm$0.136 & 0.018$\pm$0.030 & 0.660$\pm$0.040 \\
+\quad $-$ margin loss & biln-128 &
+\bad{0.041$\pm$0.023} & \bad{0.059$\pm$0.078} & \bad{0.098$\pm$0.061} &
+\bad{$-0.043\pm$0.015} & 0.018$\pm$0.030 & \good{0.948$\pm$0.028} \\
+BCE control (shortcut) & MLP-concat &
+\bad{0.015$\pm$0.002} & \bad{0.000$\pm$0.000} & \bad{0.000$\pm$0.000} &
+\bad{$-0.002\pm$0.001} & \bad{0.587$\pm$0.137} & \good{0.948$\pm$0.030} \\
 \bottomrule
 \end{tabular}%
 }
 \end{table}
 
-\textbf{The default v4 recipe passes all four pre-registered thresholds
-by $2$ to $21\times$.} The residue-level extension passes them by even
-more. \Cref{fig:summary} aggregates the headline numbers visually.
+\textbf{\method's best configuration --- the residue attention pool ---
+passes all four pre-registered thresholds by the widest margin} (matrix MRR
+$0.427$, Jaccard-vs-prior $0.000$); the mean-pool recipe already passes them by
+$2$ to $21\times$, and every ablation that removes an ingredient fails at least
+one threshold. \Cref{fig:summary} aggregates the headline numbers visually.
 
 \paragraph{Matrix per-ligand AUC: the head-to-head.}
 Evaluated on the same $200\times200$ pool and the same held-out positive
 set as the baselines in \Cref{tab:phase1} ($n=30$, chance $=0.5$;
-seed-$42$ checkpoints), \method recovers a \plauc{} of $0.891$ (v4),
-$0.930$ (v5b) and $0.926$ (the DeltaField variant of \S\ref{sec:residue}),
-against $0.43$--$0.53$ for the four baselines. On the very axis on which
+seed-$42$ checkpoints), \method recovers a \plauc{} of $0.930$ (residue
+pool) and $0.891$ (mean-pool), against $0.43$--$0.53$ for the four baselines. On the very axis on which
 every baseline collapses to chance, \method separates each ligand's true
 binders from non-binders with AUC $\approx 0.9$ --- the same ranking
 signal as \matmrr, expressed on the metric prior work reports.
@@ -511,7 +512,7 @@ signal as \matmrr, expressed on the metric prior work reports.
 \begin{figure}[t]
   \centering
   \includegraphics[width=\linewidth]{fig_summary.png}
-  \caption{Combined Phase-1 + Phase-2 dashboard. \method is the only
+  \caption{Combined diagnosis and \method dashboard. \method is the only
   model outside the cluster of baselines and the data-blind prior on
   every panel.}
   \label{fig:summary}
@@ -544,11 +545,11 @@ $0.312$) and Gini-residual (std $0.022$ vs.\ $0.136$). We keep the
 bilinear head for seed-to-seed stability and interpretability, not
 for a mean-MRR win.
 
-\paragraph{BCE-only reproduces the Phase-1 pathology.}
+\paragraph{BCE-only reproduces the shortcut pathology.}
 \texttt{abl\_bce\_only} (MLP head, BCE loss, random batches, no
-margin) is the closest in-package re-creation of a Phase-1 baseline.
+margin) is the closest in-package re-creation of a published baseline.
 Its metrics ($\gauc = 0.948$, $\matmrr \approx 0.015$, Top-10 Jaccard
-with \nullprior $= 0.587$) mirror those of the Phase-1 baselines even
+with \nullprior $= 0.587$) mirror those of the published baselines even
 though the encoders and split are the same as in the rest of the
 table. This is the cleanest in-package demonstration that the
 shortcut-avoidant behaviour comes from the four \method ingredients
@@ -575,7 +576,7 @@ the four baselines occupy the high-\gauc, low-\plauc corner, and
   \centering
   \includegraphics[width=\linewidth]{fig_response_maps.png}
   \caption{$200\times200$ score response maps. Top row: the four
-  Phase-1 baselines. Bottom row: \method (v4 default), \nullprior,
+  published baselines. Bottom row: \method (v4 default), \nullprior,
   \nullrand. Vertical bands indicate ``one protein wins many
   ligands'', the attractor signature. The four baselines reproduce
   the banding pattern of \nullprior. \method is visibly de-banded:
@@ -630,13 +631,14 @@ gate. The shortcut metric \method is explicitly trading away cannot
 also be the one that validates it.
 
 % ===========================================================================
-\section{Residue-Level Extension}
+\section{The best configuration: a residue-level attention pool}
 \label{sec:residue}
 
 \subsection{Method}
-The v4 default mean-pools the per-residue ESM2 tensor before passing it
-to the bilinear head. We replace the mean pool with a single-head
-\emph{learned-query attention pool} over per-residue ESM2 embeddings.
+The recipe's default protein encoder mean-pools the per-residue ESM2 tensor
+before the bilinear head. Our best configuration replaces that mean pool with a
+single-head \emph{learned-query attention pool} over the per-residue ESM2
+embeddings.
 A learnable query vector $\mathbf{q} \in \mathbb{R}^{1280}$ produces
 per-residue attention scores
 $\alpha_{i} = \mathrm{softmax}(\mathbf{q}^{\top}\mathrm{LN}(\mathbf{e}_{i})/\sqrt{d})$
@@ -646,225 +648,46 @@ protein representation. The new module adds $3{,}840$ parameters
 
 \subsection{Results}
 
-\Cref{tab:headline} (bottom row) reports the three-seed result. The
-extension lifts MRR $0.326 \to 0.427$ ($+0.101$, $+31\%$), Hit@5
-$0.598 \to 0.686$ ($+0.088$), and Hit@10 $0.755 \to 0.814$ ($+0.059$).
-Per-seed range: $0.316 / 0.405 / 0.559$ (seeds $42 / 1337 / 7$). The
-lift passes the pre-registered Stage-b gate of $+0.05$ absolute MRR by
-$2\times$.
+\Cref{tab:headline} (top row) reports the three-seed result. The residue
+attention pool lifts MRR $0.326 \to 0.427$ ($+0.101$, $+31\%$), Hit@5
+$0.598 \to 0.686$ ($+0.088$), and Hit@10 $0.755 \to 0.814$ ($+0.059$) over the
+mean-pool recipe. Per-seed range: $0.316 / 0.405 / 0.559$ (seeds
+$42 / 1337 / 7$). The lift passes the pre-registered residue-encoder gate of
+$+0.05$ absolute MRR by $2\times$.
 
-\subsection{Attention-weight audit}
-\label{sec:attn}
-
-\paragraph{Weights are near-uniform in magnitude.}
-A direct inspection of attention weights across all three seeds and
-$60$ sampled proteins (\Cref{fig:concentration}) reveals that the
-median top-$10\%$ mass is $0.118$ (vs.\ uniform expectation $0.10$);
-the entropy is at the mathematical ceiling $\log L$. The attention
-weights are not peaked.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.8\linewidth]{fig_attn_concentration_hist.png}
-  \caption{Top-$10\%$ attention-mass distribution across $60$ proteins,
-  per seed. All three seeds concentrate near $0.11$--$0.12$, barely
-  above the uniform expectation of $0.10$.}
-  \label{fig:concentration}
-\end{figure}
-
-\paragraph{Their rank-order is reproducible across seeds.}
-The same audit, on cross-seed comparisons, shows that the median
-Spearman rank correlation between attention weights of independently
-trained seeds is $0.86$ (random expectation $\approx 0$), and the
-median top-$10\%$ residue-set Jaccard between seed pairs is $0.50$
-(random expectation $\approx 0.10$); see
-\Cref{fig:crossseed,fig:examples}. Three independent training runs
-converge on the \emph{same} low-amplitude per-residue preference, in
-the same spirit as cross-seed reproducibility checks for transformer
-attention~\citep{jain2019attention,wiegreffe2019attention}.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.95\linewidth]{fig_attn_cross_seed_agreement.png}
-  \caption{Cross-seed agreement. Left: Spearman $\rho$ between
-  attention weights of independently trained seeds, median $0.86$.
-  Right: Jaccard of top-$10\%$ residue sets between seed pairs, median
-  $0.50$ (random $\approx 0.10$).}
-  \label{fig:crossseed}
-\end{figure}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{fig_attn_weight_examples.png}
-  \caption{Attention weight along residue position for six example
-  proteins, with three seeds overlaid per panel. Curves are jagged but
-  all three seeds track each other tightly --- the y-axis range is
-  small (typically $0.0015$--$0.0040$) but the shape is reproducible.}
-  \label{fig:examples}
-\end{figure}
-
-\subsection{Mechanism: LayerNorm-then-pool}
-
-The combination of near-uniform weights and a reproducible rank-order
-points at \emph{LayerNorm-then-pool} as the dominant mechanism. Under
-near-uniform attention the pooled representation collapses to
-$\frac{1}{L}\sum_{i=1}^{L} \mathrm{LN}(\mathbf{e}_{i})$, which is
-provably different from the v4 mean-pool
-$\frac{1}{L}\sum \mathbf{e}_{i}$. Per-residue normalisation rescales
-high-norm residues (typically signal peptides and disordered regions)
-so they no longer dominate the pooled vector. The learned attention
-adds only the small residual.
-
-This is itself a paper-level finding. Residue-level encoding helps
-\method, but the active mechanism is per-residue normalisation rather
-than learned residue selection.
-
-\paragraph{The reproducible preference is anti-correlated with the
-pocket.} If the cross-seed-reproducible rank order encoded structural
-function, the most-attended residues should coincide with the catalytic
-and ligand-binding residues. They do not. For $50$ proteins we labelled
-the active-site and binding-site residues from UniProt
-annotations~\citep{uniprot2023} and tested whether the cross-seed
-consensus attention weight ranks those residues above background. The
-mean ROC-AUC is $0.213$ (chance $0.50$; Wilcoxon $p<10^{-4}$, with
-$43/50$ proteins below chance), the mean weight on annotated residues is
-$0.88\times$ the protein average, and annotated residues are
-under-represented in each protein's top-$10\%$ most-attended set by
-$2.3\times$. The attention pool reliably \emph{de-weights} the
-functional pocket rather than selecting it (\Cref{fig:pocket}). This is
-consistent with LayerNorm-then-pool, and we pin down the operative
-axis next (\Cref{fig:annotation}): catalytic and binding residues are
-disproportionately charged and polar, exactly the residue class the
-attention suppresses.
-The $+0.10$ MRR therefore comes from rebalancing per-residue magnitudes,
-\emph{not} from the model discovering where the ligand binds.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{figures/fig_attn_weight_pocket_examples.png}
-  \caption{Per-residue attention weight (three seeds overlaid) for the six
-  example proteins, with UniProt \textcolor[HTML]{FF8C00}{binding-site}
-  (orange) and active-site (black dashed) residues marked; the grey dotted
-  line is the uniform weight $1/L$. The annotated functional residues do
-  not coincide with the attention peaks --- they typically fall on flat or
-  below-uniform stretches. Visual counterpart of the ROC-AUC $0.21$ result.}
-  \label{fig:pocket}
-\end{figure}
-
-\paragraph{What the rank-order \emph{does} encode: hydrophobicity, not
-function.} Having established what the attention avoids, we asked what it
-tracks. For the same $60$ proteins we took the cross-seed consensus weight
-and, \emph{within each protein}, computed its Spearman correlation with a
-panel of per-residue descriptors --- the ESM2 residue norm, Kyte--Doolittle
-hydropathy~\citep{kytedoolittle1982}, Chou--Fasman helix and $\beta$-sheet
-propensities~\citep{choufasman1978}, net charge, and sequence position ---
-then aggregated the within-protein correlations across proteins (script
-\texttt{evaluation/attn\_annotation\_scan.py}). The dominant signal is
-amino-acid hydrophobicity: the Kyte--Doolittle scale attains mean
-$\rho = +0.24$ with the same sign in $58/60$ proteins ($p<10^{-3}$,
-Wilcoxon), and the $\beta$-sheet propensity --- essentially the same axis,
-since $\beta$-residues are largely apolar --- gives $\rho = +0.22$; charge,
-sequence position, and helix propensity are at chance. Resolved per amino
-acid (\Cref{fig:annotation}a), the four charged residues
-(Glu, Lys, Arg, Asp) are the most strongly \emph{down}-weighted (mean
-within-protein $z \approx -0.46$) and the bulky apolar residues
-(Phe $z{=}{+}0.72$, Met, Leu, Ile, Val) the most \emph{up}-weighted; the
-per-amino-acid attention bias is a near-linear function of hydropathy
-(Pearson $r = 0.63$). The pool implements a hydrophobic-core
-vs.\ charged-surface contrast.
-
-\paragraph{It is a genuine preference, not the LayerNorm artefact.} The
-ESM2 residue norm is only weakly anti-correlated with the weight
-($\rho = -0.14$), and partialling the norm out of the hydrophobicity
-correlation by rank-residualisation leaves it essentially unchanged
-($\rho = +0.24 \to +0.24$; \Cref{fig:annotation}b). The hydrophobicity
-preference is therefore a real, norm-independent property of the learned
-query, not a by-product of per-residue normalisation. It also explains the
-pocket result at the residue level: catalytic residues are
-disproportionately charged or polar (Asp, Glu, Lys, His, Ser) --- exactly
-the residues the attention suppresses --- so the weight scores ROC-AUC
-$0.08$ on active sites and $0.29$ on binding sites, yet $0.59$ on
-hydrophobic signal peptides (\Cref{fig:annotation}c). The learned attention
-is a well-defined hydrophobicity detector that is orthogonal, and in the
-functionally critical residues anti-correlated, to where the ligand
-actually binds (\Cref{fig:annotation-explainer}).
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{fig_attn_annotation.png}
-  \caption{What the cross-seed attention rank-order encodes, across $60$
-  proteins. \textbf{(a)} Mean within-protein $z$-scored attention per amino
-  acid vs.\ Kyte--Doolittle hydropathy: a near-linear relationship
-  ($r = 0.63$), charged residues (red/orange) suppressed, apolar residues
-  (green) and Phe favoured. \textbf{(b)} Mean within-protein Spearman $\rho$
-  between attention and each per-residue descriptor; orange bars partial out
-  the ESM2 residue norm. Hydrophobicity (and the collinear $\beta$-sheet
-  propensity) dominates and survives the norm control. \textbf{(c)}
-  Within-protein ROC-AUC of attention predicting UniProt feature regions:
-  active and binding sites sit far below chance ($0.5$), hydrophobic signal
-  peptides above.}
-  \label{fig:annotation}
-\end{figure}
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\linewidth]{fig_attn_explainer.png}
-  \caption{Intuitive view of the same result. \textbf{(1)} Within-protein
-  $z$-scored attention by residue class --- charged residues down-weighted,
-  hydrophobic and aromatic residues up-weighted. \textbf{(2)} Within-protein
-  attention \emph{percentile} of functional residues: active-site residues
-  rank at the bottom (median $3$rd percentile), whereas binding-site residues
-  are only weakly suppressed (median $16$th) with a substantial upper tail
-  --- the avoidance is strong for catalytic residues but mild and variable
-  for binding residues. \textbf{Below:} two representative proteins; the
-  attention profile (blue) tracks hydropathy (green), with active (black) and
-  binding (red) residues shown at their raw attention values.}
-  \label{fig:annotation-explainer}
-\end{figure}
-
-\subsection{Implications for atom-level extension}
-The atom-level extension that we originally pre-registered would have
-identified the top-$K=8$ residues from the Stage-b attention map and
-built an atom graph on those residues plus their $4$\,\AA{}
-neighbourhood. The audit above blocks this mechanism empirically.
-Attention mass at rank-$8$ vs.\ rank-$50$ differs by only
-$\sim 10^{-4}$, so ``the eight most-attended residues'' is essentially
-a random sample of the protein, and even consistent top-$10\%$
-residue sets only overlap $50\%$ across seeds. Worse, the audit above
-shows the most-attended residues are \emph{anti}-correlated with the
-true pocket --- so they are not merely uninformative but actively the
-wrong seed set. We therefore defer the atom-level extension. A redesigned variant that uses
-AlphaFold~\citep{jumper2021alphafold} structures and an explicit
-pocket detector such as fpocket~\citep{leguilloux2009fpocket} as
-priors, instead of attention-derived pocket selection, is the only
-sound path forward.
+\paragraph{What the attention does (and does not) learn.}
+An attention-weight audit (\Cref{sec:attn}) shows the lift is a
+\emph{per-residue normalisation} effect, not pocket selection. The learned
+weights are near-uniform in magnitude (median top-$10\%$ mass $0.118$ vs.\
+$0.10$ uniform) yet their rank order is reproducible across seeds (Spearman
+$\rho = 0.86$): under near-uniform weights the pool reduces to a
+LayerNorm-then-mean over residues, which rescales high-norm residues rather
+than selecting a site. That reproducible order tracks amino-acid
+hydrophobicity ($\rho = +0.24$, surviving a norm control) and therefore
+\emph{de-weights} the catalytic pocket --- the consensus weight scores a
+within-protein ROC-AUC of only $0.08$--$0.21$ against UniProt active-/binding
+sites, far below the chance value $0.5$. The $+0.10$ MRR is thus magnitude
+rebalancing, and attention is unsound as a pocket detector: this blocks the
+naive atom-level extension (the top-$8$ attended residues are essentially a
+random --- and in the catalytic residues actively wrong --- seed set) and
+points instead at structure-derived pocket priors
+(AlphaFold~\citep{jumper2021alphafold} $+$ fpocket~\citep{leguilloux2009fpocket})
+as the sound path forward. \Cref{sec:attn} gives the full audit.
 
 % ===========================================================================
-\section{Discussion}
-\label{sec:discussion}
+\section{Generalisation beyond BRENDA-200}
+\label{sec:generalisation}
 
-\paragraph{Generality of the diagnosis.}
-The pooled-AUC vs.\ ligand-conditional-ranking gap we measure on
-BRENDA is unlikely to be unique to this benchmark. Any DTI corpus
-where the test protein distribution overlaps the training protein
-distribution, or where a few proteins are dramatically more frequent
-than the rest, admits a protein-level shortcut. The null-baseline
-probe is cheap (a single matrix multiply) and we recommend running it
-as a default sanity check before reporting pooled discrimination
-metrics on new DTI datasets.
-
-\paragraph{Cost of shortcut avoidance.}
-\method explicitly trades pooled AUC for ranking quality: $0.95 \to
-0.65$ in \gauc, $0.06 \to 0.33$ in \matmrr. The right benchmark for
-an enzyme--substrate model is the latter. Pooled AUC certifies a
-property that does not generalise across ligand identity.
+The headline results above are on BRENDA-200. We now test whether the recipe's
+two claims --- a genuine ranking lift \emph{and} the absence of the
+protein-level shortcut --- hold (i) at enzyme-wide scale and (ii) on
+independent corpora, using the same \nullprior\ probe throughout.
 
 \subsection{Does the recipe survive larger, enzyme-wide data?}
 \label{sec:transfer}
 
-The headline numbers in \S\ref{sec:results} are on BRENDA-200, a
-hydrolase-restricted sub-corpus with $200$ unique proteins and $200$
-unique ligands. To check whether \method's anti-shortcut behaviour
+BRENDA-200 is a hydrolase-restricted sub-corpus ($200$ unique proteins,
+$200$ unique ligands). To test whether \method's anti-shortcut behaviour
 holds outside that regime, we re-ran the v4 default on three
 BRENDA+SABIO with-decoys datasets at $50\times$ the scale
 (\texttt{kcat\_km}: $43$k pairs / $3.8$k proteins / $13.1$k SMILES;
@@ -880,7 +703,7 @@ $5.7$k / $13.5$k) and re-applied the \nullprior\ probe.
     \toprule
     Dataset (v4 default) & \matmrr & $\rho_{\text{row}}$ vs.\ \nullprior & Top-10 Jaccard vs.\ \nullprior \\
     \midrule
-    BRENDA-200 (Phase-1 baselines)              & $0.001$--$0.06$           & n/a                         & $\mathbf{0.54\text{--}0.67}$ \\
+    BRENDA-200 (published baselines)              & $0.001$--$0.06$           & n/a                         & $\mathbf{0.54\text{--}0.67}$ \\
     BRENDA-200 (\method v4)                     & $\mathbf{0.326 \pm 0.072}$ & n/a                         & $0.035 \pm 0.030$ \\
     BRENDA+SABIO \texttt{kcat\_km} (\method v4) & $0.134$                   & $\mathbf{-0.008 \pm 0.062}$ & $\mathbf{0.017}$ \\
     BRENDA+SABIO \texttt{km} (\method v4)       & $0.023$                   & $\mathbf{-0.134 \pm 0.026}$ & $\mathbf{0.008}$ \\
@@ -899,13 +722,13 @@ Two observations. (i) \emph{The shortcut does not return.} The mean
 per-row Spearman between the v4 score matrix and \nullprior\ is at or
 below zero on all three enzyme-wide datasets, and the top-10 Jaccard
 is one to two orders of magnitude smaller than for the unmitigated
-Phase-1 baselines on BRENDA-200. The anti-shortcut property of the
+published baselines on BRENDA-200. The anti-shortcut property of the
 recipe transfers cleanly. (ii) \emph{At the fixed pool size, absolute
 ranking quality drops --- but this is a hyperparameter-coverage
 artefact, not a loss of the recipe's signal.} At
 $\texttt{hard\_pool\_size}=50$, matrix MRR falls by a factor of $2$ to
 $14$ relative to the BRENDA-200 default. This is \emph{not} the
-Phase-1 pathology re-emerging: the model is not just learning the
+shortcut pathology re-emerging: the model is not just learning the
 per-protein training base rate ($\rho \approx 0$ with \nullprior, as
 above). The fixed pool of $50$ covers about $25\%$ of the BRENDA-200
 train set but only $0.5$--$1.3\%$ of the BRENDA+SABIO train set, so
@@ -944,7 +767,7 @@ The transfer above stays within the enzyme--substrate task. To probe
 the harder question --- does the \emph{diagnosis} hold on independent
 DTI corpora --- we ran two contrasting models on every dataset: a
 deliberately shortcut-prone \textbf{BCE control} (random sampler $+$
-binary cross-entropy $+$ MLP-concat head, i.e.\ the Phase-1 recipe) and
+binary cross-entropy $+$ MLP-concat head, i.e.\ the shortcut-prone recipe) and
 the anti-shortcut \method. Beyond the four enzyme--substrate corpora we
 add three kinase affinity benchmarks from TDC~\citep{huang2021tdc}:
 Davis (kinase $K_d$~\citep{davis2011kinase}),
@@ -977,7 +800,7 @@ leaderboard numbers.
     turnover (BRENDA+SABIO)   & BCE control & $35$ & $0.966$ & $0.533$ & $0.014$ & $+0.10$ & $0.000$ \\
                              & \method     & $35$ & $0.603$ & $0.555$ & \good{$0.344$} & $-0.06$ & $0.111$ \\
     ESP~\citep{kroll2023esp}  & BCE control & $50$ & $0.897$ & $0.847$ & $0.098$ & $+0.01$ & $0.053$ \\
-                             & \method\ (conv) & $50$ & $0.891$ & $0.887$ & \good{$0.387$} & $-0.02$ & $0.000$ \\
+                             & \method\ (residue pool) & $50$ & $0.891$ & $0.887$ & \good{$0.387$} & $-0.02$ & $0.000$ \\
     \midrule
     \multicolumn{8}{l}{\emph{Kinase affinity (not enzyme--substrate)}}\\
     BindingDB\textsubscript{$K_d$} & BCE control & $25$ & $0.844$ & $0.679$ & $0.042$ & $+0.48$ & $0.176$ \\
@@ -988,6 +811,7 @@ leaderboard numbers.
                              & \method     & $453$ & $0.492$ & \bad{$0.457$} & $0.023$ & $-0.15$ & $0.111$ \\
     \midrule
     \multicolumn{8}{l}{\emph{Chance \matmrr $\approx 0.029$ (200-protein pool); \nullprior\ \matmrr $=0.008$--$0.021$; \nullprior\ Gini $\approx 0.995$ on every dataset.}} \\
+    \multicolumn{8}{l}{\emph{\method\ rows use the mean-pool encoder except ESP, which uses the residue-level attention pool (\Cref{sec:residue}) --- \method's best configuration; residue-pool runs on the other enzyme datasets are in progress.}} \\
     \bottomrule
   \end{tabular}%
   }
@@ -1001,7 +825,7 @@ protein-level shortcut is not a BRENDA artefact. (ii) \emph{A standard
 model exploits it everywhere.} The BCE control reaches a pooled \gauc\
 of $0.84$--$0.98$ on all seven corpora while ranking at near-chance
 \matmrr\ ($0.014$--$0.098$ against a chance level of $0.029$): exactly
-the Phase-1 dissociation --- pooled metric passed, ligand-conditional
+the pooled-vs-ranking dissociation --- pooled metric passed, ligand-conditional
 ranking absent --- now reproduced on six corpora beyond BRENDA-200. It
 is sharpest on the catalytic enzyme datasets, where \gauc\ climbs to
 $0.95$--$0.98$. (iii) \emph{\method\ circumvents the shortcut on every
@@ -1018,9 +842,11 @@ independent enzyme--substrate corpus, is the instructive exception:
 unlike the BRENDA-family sets it carries genuine ligand-conditional
 signal (both models reach \plauc\ $\geq 0.85$), so once the hard-negative
 pool is scaled to $\sim\!50\%$ of its $\sim\!8$k train proteins (the
-pool-size lesson of \S\ref{sec:recipe}) \method\ ranks best of all seven
-datasets (\matmrr\ $0.387$, above the BRENDA-200 headline $0.326$ and
-$4\times$ the matched BCE control's $0.098$) \emph{while keeping} pooled
+pool-size lesson of \S\ref{sec:recipe}) \method\ --- with its best
+residue-pool configuration --- ranks best of all seven cross-corpus
+datasets (\matmrr\ $0.387$, just below its own BRENDA-200 residue-pool
+headline $0.427$ and $4\times$ the matched BCE control's $0.098$)
+\emph{while keeping} pooled
 \gauc\ $0.891$ --- no shortcut trade-off is needed where real signal
 exists, and it still rides no prior ($\rho_{\text{row}} = -0.02$, Top-10
 Jaccard $0.000$). (iv) \emph{Two
@@ -1050,10 +876,106 @@ A matched evaluation on Kroll's native $1{:}1$ phylogenetic split
 (\texttt{\_exp\_phylo\_1\_1}, $5{,}636$ test pairs) is the right
 instrument for that number; what transfers regardless of split is the
 ligand-conditional reading (\matmrr\ $0.387$, $\rho_{\text{row}}
-\approx 0$), where ESP is \method's strongest enzyme--substrate result.
+\approx 0$), where ESP is \method's strongest \emph{independent} enzyme--substrate result.
 Second, the BindingDB\textsubscript{$K_d$} rows match only $25$
 positive pairs into the $200$-protein pool, a small sample relative to
 Davis ($94$) and KIBA ($453$).
+
+\subsection{Is the advantage the recipe or the \method\ architecture?}
+\label{sec:recipetransfer}
+
+The contrast in \S\ref{sec:generalise} varies the \emph{recipe} (BCE
+control vs.\ \method) but holds the \emph{architecture} fixed at
+\method's own encoders. A sceptic can therefore still attribute the
+anti-shortcut lift to the $627$k-parameter \method\ architecture rather
+than to the training recipe. To separate the two, we transplant the
+recipe onto a foreign, off-the-shelf architecture we never designed ---
+\textbf{GraphDTA}~\citep{nguyen2021graphdta} (a GCN ligand encoder $+$
+1D-CNN protein encoder, one of our Phase-1 baselines, left structurally
+unchanged) --- and add the recipe ingredients one at a time:
+\textbf{orig} (random-shuffle BCE, the off-the-shelf baseline),
+\textbf{$+$sampler} (protein-balanced sampling), \textbf{$+$margin}
+(within-ligand margin loss, random negatives), and \textbf{$+$hard-neg}
+(online hard-negative mining). Every variant uses the same
+protein-disjoint split, the same $200$-protein pool, and the same
+seed-42 held-out positives as every other row in this paper, and ---
+because pooled \gauc\ is retired (\S\ref{sec:gauc}) --- selects its
+checkpoint on val \matmrr. BRENDA-200 runs report mean\,$\pm$\,std over
+seeds $\{42,7,1337\}$; turnover is single-seed.
+
+\begin{table}[h]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \resizebox{\textwidth}{!}{%
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    & \multicolumn{3}{c}{BRENDA-200 (3 seeds)} & \multicolumn{3}{c}{turnover (1 seed)} \\
+    \cmidrule(lr){2-4}\cmidrule(lr){5-7}
+    GraphDTA $+$ recipe ingredient & \plauc & \matmrr & Hit@10 & \plauc & \matmrr & Hit@10 \\
+    \midrule
+    orig (random-shuffle BCE)         & $0.604{\pm}.05$ & $0.018{\pm}.00$ & $0.010{\pm}.01$ & $0.532$ & $0.030$ & $0.114$ \\
+    $+$ protein-balanced sampler      & $0.605{\pm}.06$ & $0.029{\pm}.01$ & $0.029{\pm}.02$ & $0.502$ & $0.023$ & $0.000$ \\
+    $+$ within-ligand margin loss     & \good{$0.757{\pm}.08$} & \good{$0.116{\pm}.06$} & \good{$0.245{\pm}.09$} & \good{$0.635$} & $0.037$ & $0.114$ \\
+    $+$ online hard-negative mining   & $0.656{\pm}.01$ & $0.043{\pm}.01$ & $0.147{\pm}.11$ & $0.466$ & $0.045$ & $0.029$ \\
+    \midrule
+    \method\ v4 (full recipe $+$ arch.) & $\mathbf{0.891}$ & $\mathbf{0.247}$ & $\mathbf{0.647}$ & $\mathbf{0.926}$ & $\mathbf{0.344}$ & $\mathbf{0.714}$ \\
+    \bottomrule
+  \end{tabular}%
+  }
+\end{table}
+
+Four observations, consistent across both datasets. (i) \emph{The
+balanced sampler alone is inert.} Adding protein-balanced sampling to
+the BCE baseline moves \plauc\ by $\le 0.01$ on BRENDA and
+\emph{down} on turnover --- rebalancing which pairs are seen does
+nothing on its own. (ii) \emph{The within-ligand margin loss is the
+ingredient that transfers.} On a frozen, mediocre architecture it lifts
+\plauc\ by $\sim\!0.15$ ($0.605\!\to\!0.757$ BRENDA;
+$0.502\!\to\!0.635$ turnover) and \matmrr/Hit@10 several-fold
+($\matmrr\ 0.029\!\to\!0.116$, Hit@10 $0.029\!\to\!0.245$ on BRENDA),
+well above the \nullprior\ baseline ($\matmrr\ 0.008$--$0.021$) and the
+GraphDTA BCE baseline. The anti-shortcut signal is carried by the
+ranking objective, not by \method's architecture. (iii) \emph{Online
+hard-negative mining does \textbf{not} transfer to GraphDTA --- it
+regresses} ($0.757\!\to\!0.656$ BRENDA, $0.635\!\to\!0.466$ turnover).
+Unlike the coverage caveat of \S\ref{sec:transfer}, this is not a
+sampling-coverage artefact: GraphDTA's hard-negative refresh runs at
+full (positive-ligand\,$\times$\,all-protein) coverage every epoch.
+The regression instead reflects that hard-negative mining \emph{reads
+off the model's own score matrix} to pick informative confusers; a
+weaker encoder yields noisier scores, so the mined negatives are less
+reliable and destabilise the margin objective. Hard-negative mining is
+thus the one ingredient whose benefit is encoder-dependent --- a
+refinement on top of a strong representation, not a portable primitive.
+(iv) \emph{Architecture still matters.} Even its best variant
+($+$margin) leaves GraphDTA far below \method\ v4 ($\plauc\ 0.76$ vs.\
+$0.89$, $\matmrr\ 0.12$ vs.\ $0.25$ on BRENDA): the recipe transfers a
+\emph{large fraction} of the anti-shortcut behaviour to a foreign
+architecture, but \method's encoders and bilinear head close the
+remaining gap. The headline claim sharpens accordingly: the portable
+core of the recipe is the \emph{within-ligand ranking objective}, which
+attributes the anti-shortcut advantage to the training recipe rather
+than to the \method\ architecture; online hard-negative mining is an
+architecture-sensitive refinement, not a transferable primitive.
+
+% ===========================================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{Generality of the diagnosis.}
+The pooled-AUC vs.\ ligand-conditional-ranking gap is unlikely to be unique to
+BRENDA. Any DTI corpus where the test protein distribution overlaps the
+training one, or where a few proteins are far more frequent than the rest,
+admits a protein-level shortcut. The null-baseline probe is cheap (a single
+matrix multiply) and we recommend running it as a default sanity check before
+reporting pooled discrimination metrics on new DTI datasets.
+
+\paragraph{Cost of shortcut avoidance.}
+\method explicitly trades pooled AUC for ranking quality ($0.95 \to 0.65$ in
+\gauc, $0.06 \to 0.33$ in \matmrr). For an enzyme--substrate model the latter
+is the right benchmark: pooled AUC certifies a property that does not
+generalise across ligand identity.
 
 \subsection{Practitioner recipe --- what to do for a new model or dataset}
 \label{sec:recipe}
@@ -1133,7 +1055,7 @@ recipe for any enzyme--substrate or general DTI work:
         strengthening, not just retuning.
 \end{enumerate}
 
-The recipe is intentionally short. The Phase-1 diagnosis identified a
+The recipe is intentionally short. The diagnosis identified a
 single failure mode (protein-level prior fitting) and
 \S\ref{sec:results} isolated four remedies that \emph{jointly} break
 it. None of the four ingredients on its own is sufficient: margin loss
@@ -1153,7 +1075,7 @@ are needed at full strength.
   \item \textbf{$200 \times 200$ probe matrix.} Scaling to the full
         $\sim 1.4$k-protein test pool would tighten standard errors but
         does not change the qualitative ranking.
-  \item \textbf{Stage-b variance.} The residue-level extension lifts
+  \item \textbf{Residue-pool variance.} The residue attention pool lifts
         mean MRR by $+0.10$ but widens the seed-to-seed standard
         deviation from $0.072$ (v4) to $0.123$ (v5b); we report the
         spread explicitly rather than the mean alone.
@@ -1216,7 +1138,7 @@ AUC by exploiting the per-protein label prior, \method enforces
 ligand-conditional ranking through the joint action of
 protein-balanced sampling, a within-ligand margin loss, a
 matched-capacity bilinear head, and online hard-negative mining. A
-residue-level extension adds $+0.10$ absolute MRR and shows that
+residue attention pool adds $+0.10$ absolute MRR and shows that
 residue-level information is best exploited via per-residue
 normalisation rather than learned pocket selection. A transferability
 probe on three enzyme-wide BRENDA+SABIO datasets confirms that the
@@ -1294,8 +1216,7 @@ All training and evaluation runs use one NVIDIA A30 GPU on the
 Leipzig HPC cluster. PyTorch~$2.8.0$ + CUDA~$12.4$ in the
 \texttt{\textasciitilde/venvs/hieratombind} virtual environment.
 Module load: \texttt{GCC/11.3.0 CUDA/12.4.0 Python/3.10.4-GCCcore-11.3.0}.
-Mean per-seed walltime $\approx 1.5$\,h (v4) or $4$\,h (Stage-b
-residue extension).
+Mean per-seed walltime $\approx 1.5$\,h (v4) or $4$\,h (residue attention pool).
 
 \paragraph{Data.}
 BRENDA enzyme--substrate pairs with curated decoys, available at
@@ -1442,7 +1363,7 @@ proteins together and pushes unrelated ones apart.
 
 \Cref{fig:pair_compare} contrasts pair-level linear-probe AUC through
 the architecture for two trained models: \texttt{abl\_bce\_only} (the
-in-package re-creation of the Phase-1 shortcut pathology) and the
+in-package re-creation of the shortcut pathology) and the
 gold-standard residue-level \method. The BCE model's pair AUC rises
 through the architecture (the per-protein label-prior shortcut is
 being amplified). The \method model's pair AUC drops, which is the
@@ -1462,8 +1383,198 @@ ligand-conditional ranking.
 
 \clearpage
 
+\clearpage
+\section{Attention-weight audit}
+\label{sec:attn}
+
+This appendix gives the full residue-level audit summarised in \Cref{sec:residue}.
+
+\paragraph{Weights are near-uniform in magnitude.}
+A direct inspection of attention weights across all three seeds and
+$60$ sampled proteins (\Cref{fig:concentration}) reveals that the
+median top-$10\%$ mass is $0.118$ (vs.\ uniform expectation $0.10$);
+the entropy is at the mathematical ceiling $\log L$. The attention
+weights are not peaked.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.8\linewidth]{fig_attn_concentration_hist.png}
+  \caption{Top-$10\%$ attention-mass distribution across $60$ proteins,
+  per seed. All three seeds concentrate near $0.11$--$0.12$, barely
+  above the uniform expectation of $0.10$.}
+  \label{fig:concentration}
+\end{figure}
+
+\paragraph{Their rank-order is reproducible across seeds.}
+The same audit, on cross-seed comparisons, shows that the median
+Spearman rank correlation between attention weights of independently
+trained seeds is $0.86$ (random expectation $\approx 0$), and the
+median top-$10\%$ residue-set Jaccard between seed pairs is $0.50$
+(random expectation $\approx 0.10$); see
+\Cref{fig:crossseed,fig:examples}. Three independent training runs
+converge on the \emph{same} low-amplitude per-residue preference, in
+the same spirit as cross-seed reproducibility checks for transformer
+attention~\citep{jain2019attention,wiegreffe2019attention}.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.95\linewidth]{fig_attn_cross_seed_agreement.png}
+  \caption{Cross-seed agreement. Left: Spearman $\rho$ between
+  attention weights of independently trained seeds, median $0.86$.
+  Right: Jaccard of top-$10\%$ residue sets between seed pairs, median
+  $0.50$ (random $\approx 0.10$).}
+  \label{fig:crossseed}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{fig_attn_weight_examples.png}
+  \caption{Attention weight along residue position for six example
+  proteins, with three seeds overlaid per panel. Curves are jagged but
+  all three seeds track each other tightly --- the y-axis range is
+  small (typically $0.0015$--$0.0040$) but the shape is reproducible.}
+  \label{fig:examples}
+\end{figure}
+
+\subsection{Mechanism: LayerNorm-then-pool}
+
+The combination of near-uniform weights and a reproducible rank-order
+points at \emph{LayerNorm-then-pool} as the dominant mechanism. Under
+near-uniform attention the pooled representation collapses to
+$\frac{1}{L}\sum_{i=1}^{L} \mathrm{LN}(\mathbf{e}_{i})$, which is
+provably different from the v4 mean-pool
+$\frac{1}{L}\sum \mathbf{e}_{i}$. Per-residue normalisation rescales
+high-norm residues (typically signal peptides and disordered regions)
+so they no longer dominate the pooled vector. The learned attention
+adds only the small residual.
+
+This is itself a paper-level finding. Residue-level encoding helps
+\method, but the active mechanism is per-residue normalisation rather
+than learned residue selection.
+
+\paragraph{The reproducible preference is anti-correlated with the
+pocket.} If the cross-seed-reproducible rank order encoded structural
+function, the most-attended residues should coincide with the catalytic
+and ligand-binding residues. They do not. For $50$ proteins we labelled
+the active-site and binding-site residues from UniProt
+annotations~\citep{uniprot2023} and tested whether the cross-seed
+consensus attention weight ranks those residues above background. The
+mean ROC-AUC is $0.213$ (chance $0.50$; Wilcoxon $p<10^{-4}$, with
+$43/50$ proteins below chance), the mean weight on annotated residues is
+$0.88\times$ the protein average, and annotated residues are
+under-represented in each protein's top-$10\%$ most-attended set by
+$2.3\times$. The attention pool reliably \emph{de-weights} the
+functional pocket rather than selecting it (\Cref{fig:pocket}). This is
+consistent with LayerNorm-then-pool, and we pin down the operative
+axis next (\Cref{fig:annotation}): catalytic and binding residues are
+disproportionately charged and polar, exactly the residue class the
+attention suppresses.
+The $+0.10$ MRR therefore comes from rebalancing per-residue magnitudes,
+\emph{not} from the model discovering where the ligand binds.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{fig_attn_weight_pocket_examples.png}
+  \caption{Per-residue attention weight (three seeds overlaid) for the six
+  example proteins, with UniProt \textcolor[HTML]{FF8C00}{binding-site}
+  (orange) and active-site (black dashed) residues marked; the grey dotted
+  line is the uniform weight $1/L$. The annotated functional residues do
+  not coincide with the attention peaks --- they typically fall on flat or
+  below-uniform stretches. Visual counterpart of the ROC-AUC $0.21$ result.}
+  \label{fig:pocket}
+\end{figure}
+
+\paragraph{What the rank-order \emph{does} encode: hydrophobicity, not
+function.} Having established what the attention avoids, we asked what it
+tracks. For the same $60$ proteins we took the cross-seed consensus weight
+and, \emph{within each protein}, computed its Spearman correlation with a
+panel of per-residue descriptors --- the ESM2 residue norm, Kyte--Doolittle
+hydropathy~\citep{kytedoolittle1982}, Chou--Fasman helix and $\beta$-sheet
+propensities~\citep{choufasman1978}, net charge, and sequence position ---
+then aggregated the within-protein correlations across proteins (script
+\texttt{evaluation/attn\_annotation\_scan.py}). The dominant signal is
+amino-acid hydrophobicity: the Kyte--Doolittle scale attains mean
+$\rho = +0.24$ with the same sign in $58/60$ proteins ($p<10^{-3}$,
+Wilcoxon), and the $\beta$-sheet propensity --- essentially the same axis,
+since $\beta$-residues are largely apolar --- gives $\rho = +0.22$; charge,
+sequence position, and helix propensity are at chance. Resolved per amino
+acid (\Cref{fig:annotation}a), the four charged residues
+(Glu, Lys, Arg, Asp) are the most strongly \emph{down}-weighted (mean
+within-protein $z \approx -0.46$) and the bulky apolar residues
+(Phe $z{=}{+}0.72$, Met, Leu, Ile, Val) the most \emph{up}-weighted; the
+per-amino-acid attention bias is a near-linear function of hydropathy
+(Pearson $r = 0.63$). The pool implements a hydrophobic-core
+vs.\ charged-surface contrast.
+
+\paragraph{It is a genuine preference, not the LayerNorm artefact.} The
+ESM2 residue norm is only weakly anti-correlated with the weight
+($\rho = -0.14$), and partialling the norm out of the hydrophobicity
+correlation by rank-residualisation leaves it essentially unchanged
+($\rho = +0.24 \to +0.24$; \Cref{fig:annotation}b). The hydrophobicity
+preference is therefore a real, norm-independent property of the learned
+query, not a by-product of per-residue normalisation. It also explains the
+pocket result at the residue level: catalytic residues are
+disproportionately charged or polar (Asp, Glu, Lys, His, Ser) --- exactly
+the residues the attention suppresses --- so the weight scores ROC-AUC
+$0.08$ on active sites and $0.29$ on binding sites, yet $0.59$ on
+hydrophobic signal peptides (\Cref{fig:annotation}c). The learned attention
+is a well-defined hydrophobicity detector that is orthogonal, and in the
+functionally critical residues anti-correlated, to where the ligand
+actually binds (\Cref{fig:annotation-explainer}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{fig_attn_annotation.png}
+  \caption{What the cross-seed attention rank-order encodes, across $60$
+  proteins. \textbf{(a)} Mean within-protein $z$-scored attention per amino
+  acid vs.\ Kyte--Doolittle hydropathy: a near-linear relationship
+  ($r = 0.63$), charged residues (red/orange) suppressed, apolar residues
+  (green) and Phe favoured. \textbf{(b)} Mean within-protein Spearman $\rho$
+  between attention and each per-residue descriptor; orange bars partial out
+  the ESM2 residue norm. Hydrophobicity (and the collinear $\beta$-sheet
+  propensity) dominates and survives the norm control. \textbf{(c)}
+  Within-protein ROC-AUC of attention predicting UniProt feature regions:
+  active and binding sites sit far below chance ($0.5$), hydrophobic signal
+  peptides above.}
+  \label{fig:annotation}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{fig_attn_explainer.png}
+  \caption{Intuitive view of the same result. \textbf{(1)} Within-protein
+  $z$-scored attention by residue class --- charged residues down-weighted,
+  hydrophobic and aromatic residues up-weighted. \textbf{(2)} Within-protein
+  attention \emph{percentile} of functional residues: active-site residues
+  rank at the bottom (median $3$rd percentile), whereas binding-site residues
+  are only weakly suppressed (median $16$th) with a substantial upper tail
+  --- the avoidance is strong for catalytic residues but mild and variable
+  for binding residues. \textbf{Below:} two representative proteins; the
+  attention profile (blue) tracks hydropathy (green), with active (black) and
+  binding (red) residues shown at their raw attention values.}
+  \label{fig:annotation-explainer}
+\end{figure}
+
+\subsection{Implications for atom-level extension}
+The atom-level extension that we originally pre-registered would have
+identified the top-$K=8$ residues from the residue-pool attention map and
+built an atom graph on those residues plus their $4$\,\AA{}
+neighbourhood. The audit above blocks this mechanism empirically.
+Attention mass at rank-$8$ vs.\ rank-$50$ differs by only
+$\sim 10^{-4}$, so ``the eight most-attended residues'' is essentially
+a random sample of the protein, and even consistent top-$10\%$
+residue sets only overlap $50\%$ across seeds. Worse, the audit above
+shows the most-attended residues are \emph{anti}-correlated with the
+true pocket --- so they are not merely uninformative but actively the
+wrong seed set. We therefore defer the atom-level extension. A redesigned variant that uses
+AlphaFold~\citep{jumper2021alphafold} structures and an explicit
+pocket detector such as fpocket~\citep{leguilloux2009fpocket} as
+priors, instead of attention-derived pocket selection, is the only
+sound path forward.
+
+
 % ---- Bibliography ---------------------------------------------------------
 \bibliographystyle{plainnat}
-\bibliography{references}
+\bibliography{../references}
 
 \end{document}

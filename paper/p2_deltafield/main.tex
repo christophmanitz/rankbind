@@ -1,0 +1,607 @@
+\documentclass[11pt,a4paper]{article}
+
+% ===========================================================================
+% DeltaField -- Paper 2 (the "danach" paper).
+% STATUS: SKELETON. Method, theorem and protocol are written from
+% docs/DELTAFIELD_CONCEPT.md and the shipped code (v5_rankbind, head='deltafield',
+% v5_rankbind/tests/test_deltafield.py). The RESULTS section is a deliberate
+% placeholder: only one single-seed BRENDA-200 pilot has finished
+% (matrix MRR 0.206, matrix per-ligand AUC 0.926, anti-shortcut holds) and it
+% ranks below the v4 recipe, so no headline result is claimed yet. The
+% GNN-deepened difference propagation, the multi-seed runs and the enzyme-wide
+% (turnover) runs are the contribution still being produced; fill the result
+% tables once those land.
+% ===========================================================================
+
+% ---- Packages -------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{microtype}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{authblk}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{url}
+\usepackage[hidelinks,colorlinks=true,linkcolor=black,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage[capitalize,noabbrev]{cleveref}
+\usepackage{natbib}
+\usepackage{lmodern}
+\usepackage{xspace}
+\usepackage{amsthm}
+
+\graphicspath{{../figures/}{figures/}}
+
+% ---- Macros ---------------------------------------------------------------
+\newcommand{\df}{DeltaField\xspace}
+\newcommand{\method}{RankBind\xspace}
+\newcommand{\nullprior}{\textsc{null\_prot\_prior}\xspace}
+\newcommand{\gauc}{global AUC}
+\newcommand{\plauc}{per-ligand AUC}
+\newcommand{\matmrr}{matrix MRR}
+\newcommand{\Hfree}{\mathbf{H}_{\text{free}}}
+\newcommand{\Hcoup}{\mathbf{H}_{\text{coup}}}
+
+% "good"/"bad" cells + a visible placeholder marker for unfilled results.
+\newcommand{\good}[1]{\textcolor{teal!75!black}{\textbf{#1}}}
+\newcommand{\bad}[1]{\textcolor{red!75!black}{\textbf{#1}}}
+\newcommand{\TODO}[1]{\textcolor{red!80!black}{\textbf{[TODO: #1]}}}
+\newcommand{\pending}{\textcolor{gray}{---}}
+
+% ---- Submission placeholders ----------------------------------------------
+\newcommand{\repourl}{\url{https://github.com/cmanitz/rankbind}}
+\newcommand{\zenododoi}{10.5281/zenodo.XXXXXXX}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+
+% ---- Title block ----------------------------------------------------------
+\title{\textbf{\df: Architecturally Ligand-Conditional Binding Prediction\\
+via Coupled--Free Difference Encoding}\\[4pt]
+\large\normalfont\textcolor{red!70!black}{Draft skeleton --- results pending}}
+
+\author[1]{Christoph Manitz}
+\affil[1]{Leipzig University, Germany \\
+\texttt{christoph.manitz@uni-leipzig.de}}
+
+\date{June 2026}
+
+% ===========================================================================
+\begin{document}
+\maketitle
+
+% ---- Abstract -------------------------------------------------------------
+\begin{abstract}
+Drug--target interaction models on enzyme--substrate benchmarks pass pooled
+discrimination metrics (global AUC) by exploiting a \emph{protein-level
+shortcut}: they infer the binding probability mostly from the protein
+identity, with the ligand a secondary signal. Companion
+work~\citep{manitz2026rankbind} diagnoses this shortcut and shows that a
+four-ingredient \emph{training recipe} (\method) breaks it, at the cost of
+giving up the pooled metric. That fix is enforced by the loss and the
+sampler; nothing in the architecture \emph{prevents} the score from
+re-encoding a per-protein prior. We propose \df, an architecture in which the
+protein-only prior is \emph{structurally unrepresentable in the score}.
+A single weight-shared bipartite residue$\times$atom transformer is run twice
+on the same inputs --- once with all cross-modal edges masked (the
+\emph{free} pass, which can encode only ligand-agnostic protein identity) and
+once with them open (the \emph{coupled} pass) --- and the score is read
+\emph{only} from the per-node difference field $\Delta = \Hcoup - \Hfree$.
+Any signal invariant to the ligand's presence lives in the free pass and
+cancels in the subtraction; the surviving signal is ligand-conditional by the
+chain rule rather than by a penalty. This yields a verifiable guarantee
+(\Cref{thm:zerofield}): with the cross-edges masked, $\Delta\equiv0$ exactly
+and the score collapses to a single global constant identical for every
+protein, so a per-protein prior \emph{cannot} rank --- a property we assert as
+a unit test rather than a claim. \df\ drops into the existing \method\ stack
+(margin loss, hard-negative mining, $200\times200$ matrix-ranking evaluation)
+and additionally emits a residue/atom/contact interaction map read off the
+same difference field. This manuscript presents the architecture, the
+zero-field theorem and the evaluation protocol; the full empirical study
+---a GNN-deepened difference-propagation variant, multi-seed runs, and the
+enzyme-wide transfer--- is in progress and the result tables are placeholders.
+A single-seed BRENDA-200 pilot already confirms the anti-shortcut property
+(matrix per-ligand AUC $0.926$) but does not yet match the \method\ recipe on
+raw ranking; closing that gap is the object of the ongoing work.
+\end{abstract}
+
+% ===========================================================================
+\section{Introduction}
+\label{sec:intro}
+
+Predicting whether a small molecule binds a given protein is a central task
+in computational chemistry. On the enzyme--substrate sub-task, several
+architectures report pooled AUC values that suggest saturated
+benchmarks~\citep{bai2023drugban,huang2021moltrans,nguyen2021graphdta,wang2023gems}.
+Companion work~\citep{manitz2026rankbind} shows these numbers certify a
+\emph{shortcut}~\citep{geirhos2020shortcut}: a data-blind classifier that
+scores each pair using only the per-protein training positive rate
+($\nullprior$) reproduces both the pooled AUC and the attractor geometry
+(Gini $\approx0.995$) of the trained baselines, while every baseline's
+\emph{within-ligand} ranking sits at or below chance. The pathology is a
+\emph{rank} pathology that pooled metrics cannot see.
+
+\paragraph{From a training fix to an architectural one.}
+\method~\citep{manitz2026rankbind} removes the shortcut with four training
+ingredients --- protein-balanced sampling, a within-ligand margin loss, a
+low-rank bilinear head, and online hard-negative mining --- and demonstrably
+drives the top-10 attractor overlap with $\nullprior$ to zero. But that
+guarantee is \emph{behavioural}: it is a property of a converged optimum
+under a particular loss and sampler. The bilinear score
+$s(L,P)=f(L)^{\top}(UV^{\top}+\mathrm{diag}(d))g(P)+b$ still contains a
+protein-only pathway --- $g(P)$ enters the score whether or not the ligand
+carries information --- so a per-protein prior remains \emph{representable};
+the recipe merely makes it unattractive to the optimiser. On a new dataset,
+a new encoder, or a tuning slip, the prior can re-enter (we observe exactly
+this on one external corpus in the companion paper, where training
+early-stops into a shortcut-flavoured solution).
+
+This paper asks a sharper question: \emph{can the protein-only prior be made
+unrepresentable in the score by construction?} A score that is identically a
+constant whenever the ligand is removed cannot encode a per-protein prior at
+all --- no loss or sampler required. We give such an architecture.
+
+\paragraph{The \df\ idea.}
+We borrow the difference-encoding device of GMSF~\citep{zhao2026gmsf}, which
+predicts enzyme function from a chemical reaction by encoding the
+\emph{per-atom difference} between aligned reactant and product states: the
+difference localises the reaction centre and cancels the conserved scaffold.
+The transferable kernel is \emph{represent a process by the per-element
+difference between two aligned states; the difference localises the active
+region and cancels the inert background}. Binding has two analogous states
+--- unbound (apo) and bound (holo) --- but no holo structure exists at
+inference. Rather than hallucinate a virtual complex, \df\ \emph{realises both
+states inside one forward pass} of a single weight-shared network, toggling
+only the cross-modal attention mask:
+\begin{itemize}[leftmargin=*,itemsep=1pt,topsep=2pt]
+  \item the \textbf{free pass} masks all ligand$\leftrightarrow$protein edges,
+        so its representation can encode at most ligand-agnostic protein
+        identity --- exactly the shortcut;
+  \item the \textbf{coupled pass} opens those edges with the same weights;
+  \item the score is read from the \textbf{difference field}
+        $\Delta=\Hcoup-\Hfree$, in which the shortcut cancels.
+\end{itemize}
+
+\paragraph{Contributions.}
+\begin{enumerate}[leftmargin=*,itemsep=0pt,topsep=2pt]
+  \item \textbf{\df}, a weight-shared bipartite residue$\times$atom
+        transformer whose score is read \emph{only} from the coupled--free
+        difference field, making the per-protein prior structurally
+        unrepresentable in the score (\Cref{sec:method}).
+  \item A \textbf{verifiable anti-shortcut guarantee}: the zero-field theorem
+        (\Cref{thm:zerofield}) and its corollary that the score collapses to
+        a single global constant under masked coupling, asserted as a unit
+        test (\Cref{sec:antishortcut}).
+  \item A \textbf{dual output}: a residue/atom/contact interaction map read
+        off the same difference field, with a pre-registered pocket-overlap
+        go/no-go that tests whether the field concentrates \emph{on} the
+        binding pocket --- the site that \method's learned attention was
+        shown to \emph{avoid}~\citep{manitz2026rankbind} (\Cref{sec:dual}).
+  \item An \textbf{evaluation protocol} that reuses the companion paper's
+        diagnosis instruments ($\nullprior$ probe, $200\times200$ matrix
+        ranking, matched-capacity ablation) so \df\ is measured on the same
+        axes as the recipe it is meant to internalise (\Cref{sec:exp}). The
+        empirical study is in progress; \Cref{sec:exp} states the
+        pre-registered checks and leaves the result tables as placeholders.
+\end{enumerate}
+
+% ===========================================================================
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Target-prior / shortcut bias in DTI.}
+Shortcut learning~\citep{geirhos2020shortcut} and benchmark leakage in
+protein--ligand prediction~\citep{wallach2018mostligands,kapoor2023leakage}
+are well documented. The companion paper~\citep{manitz2026rankbind} measures
+the specific protein-prior shortcut on enzyme--substrate data and removes it
+behaviourally. \textbf{TAPB}~\citep{wang2025tapb} addresses the same
+target-prior bias but removes it by \emph{causal backdoor adjustment} over a
+dictionary of confounders. \df\ differs in mechanism: it removes the prior by
+\emph{representation-level subtraction} (the free pass), not by an explicit
+causal estimand.
+
+\paragraph{Apo$\to$holo and counterfactual complexes.}
+\textbf{FlowDock}~\citep{morehead2025flowdock} shares the apo$\to$holo framing
+and an affinity head, but predicts on a \emph{generated} 3D complex. \df's
+coupled pass is a counterfactual virtual-holo computed by \emph{masking}, not
+a hallucinated structure, and its score is read from a difference in
+embedding space with no 3D generation.
+
+\paragraph{Residue$\times$atom interaction maps.}
+\textbf{MONN}~\citep{li2020monn}, \textbf{LaMPSite}, \textbf{ICAN} and
+\textbf{ArkDTA} produce residue$\times$atom cross-attention interaction maps.
+\df\ borrows the map but reads its \emph{score} only from the difference
+field, subject to the zero-field invariant; the cited models score from the
+coupled representation directly, so they carry no analogous structural
+anti-shortcut guarantee.
+
+\paragraph{Difference encoding.}
+The structural seed is \textbf{GMSF}~\citep{zhao2026gmsf}, which encodes the
+per-atom reactant$\to$product difference and propagates it with a second GNN.
+GMSF's own ablation is instructive: the difference module is the main
+structural win, and \emph{naive} fusion of two unaligned modalities causes
+negative transfer --- the alignment anchor is what makes fusion help. \df\
+inherits both lessons (the difference as the load-bearing device; an explicit
+alignment, here the residue/atom identity across the free and coupled passes).
+
+% ===========================================================================
+\section{\df: Method}
+\label{sec:method}
+
+\df\ reuses the frozen encoders and projectors of the \method\ stack and adds
+a single new interaction head (\texttt{head\_type=\textquotesingle
+deltafield\textquotesingle}); the training loop, loss and metrics are
+unchanged. Tensor dimensions follow the repository: ESM2 per-residue
+$1280$-d, ChemBERTa per-token $384$-d, projection $d$.
+
+\subsection{Inputs and projection}
+The protein (apo) is the frozen ESM2 per-residue tensor
+$E_P\in\mathbb{R}^{B\times L\times1280}$ with a residue mask, as already
+produced in \method's \texttt{attn\_pool} mode. The ligand is the frozen
+ChemBERTa \emph{per-token} tensor $E_L\in\mathbb{R}^{B\times A\times384}$ with
+a token mask (the per-token hidden states, minus the CLS token, cached
+alongside a BPE-token$\to$RDKit-atom offset map). The existing projectors are
+applied along the token/residue axis,
+$u=\mathrm{ProteinProjector}(E_P)\in\mathbb{R}^{B\times L\times d}$,
+$v=\mathrm{LigandProjector}(E_L)\in\mathbb{R}^{B\times A\times d}$; with
+modality-type embeddings added, they are stacked into a single node set
+$X_0=[\,u\,;\,v\,]\in\mathbb{R}^{B\times(L+A)\times d}$.
+
+\subsection{Weight-shared bipartite encoder: free vs.\ coupled}
+The engine is a small transformer of $T$ blocks (multi-head attention $+$
+FFN), run \emph{twice with identical weights}, differing only in the
+attention mask:
+\begin{align}
+\Hfree &= \mathrm{Enc}_\theta(X_0;\, A_{\text{free}}), &
+\Hcoup &= \mathrm{Enc}_\theta(X_0;\, A_{\text{coup}}),
+\end{align}
+where $A_{\text{free}}$ is block-diagonal (residues attend to residues, atoms
+to atoms; \emph{no} cross edges) and $A_{\text{coup}}$ additionally opens the
+ligand$\leftrightarrow$protein edges. The free pass therefore cannot transport
+any ligand information into a protein node, and vice versa: it can encode at
+most ligand-agnostic protein identity --- the shortcut. The coupled
+cross-attention weights $W_{\text{cross}}\in\mathbb{R}^{B\times \text{heads}
+\times L\times A}$ are cached for the contact map.
+
+\subsection{The difference field}
+The load-bearing object is the per-node difference
+\begin{equation}
+\Delta \;=\; \Hcoup - \Hfree \;\in\; \mathbb{R}^{B\times(L+A)\times d},
+\end{equation}
+split into a residue block $d_{\text{res}}\in\mathbb{R}^{B\times L\times d}$
+and an atom block $d_{\text{atom}}\in\mathbb{R}^{B\times A\times d}$, with
+scalar per-node energies
+$e_{\text{res}}=\lVert d_{\text{res}}\rVert_2$ and
+$e_{\text{atom}}=\lVert d_{\text{atom}}\rVert_2$.
+
+\subsection{Difference-graph propagation (the GNN graft)}
+\label{sec:prop}
+Following GMSF's ``second GNN'', an ablatable propagation stage
+($\texttt{prop\_layers}\in\{0,1,\dots\}$) lifts the difference from a per-node
+quantity to a synergistic, pocket-scale signal:
+$x'_{\text{node}}=\mathrm{Linear}([\Hfree;\Delta])$ followed by one (or more)
+weight-shared message-passing layer under the coupled mask, yielding a
+propagated field $\tilde{D}$. \textbf{Only $\tilde{D}$ routes into the score;
+$\Hfree$ is a context channel for the propagation only and never reaches the
+scalar.} Deepening this stage --- replacing the single coupled-mask layer with
+a genuine residue$\times$atom message-passing network over the contact graph
+--- is the principal architectural extension under study
+(\Cref{sec:future}); the zero-field guarantee below holds for any
+$\tilde{D}$ that is a function of $\Delta$ alone and vanishes with it.
+
+\subsection{Additive perturbation-energy score head}
+The score is a mass-conserving sum of per-node contributions, every term
+linear in $\tilde{D}$:
+\begin{align}
+w_{\text{res}} &= \mathrm{softmax}_i\!\big(\phi\cdot \tilde{D}_{\text{res}}\big)\ \text{gated by}\ e_{\text{res}}, &
+c_{\text{res}}[i] &= a^{\top}\tilde{D}_{\text{res}}[i], \\
+\text{score} &= b_0 \;+\; \sum_i w_{\text{res}}[i]\,c_{\text{res}}[i] \;+\; \sum_a w_{\text{atom}}[a]\,c_{\text{atom}}[a], \label{eq:score}
+\end{align}
+with an analogous atom branch. Crucially, \textbf{no $a^{\top}\Hfree$ or
+$g(P)$ term ever enters \Cref{eq:score}}: the protein representation reaches
+the score only through $\tilde{D}$, which is a difference. The head outputs
+(a) the scalar score for matrix-MRR ranking, (b) the residue interaction map
+$e_{\text{res}}$ / signed $c_{\text{res}}$, (c) the atom map $e_{\text{atom}}$
+back-projected to SMILES atoms, and (d) the residue$\times$atom contact map
+$C[i,a]=\mathrm{mean}_{\text{heads}}W_{\text{cross}}[i,a]\cdot
+e_{\text{res}}[i]\cdot e_{\text{atom}}[a]$, matching \method's
+\texttt{head(fL,gP)}$\to$scalar contract so the rest of the pipeline is
+untouched.
+
+\subsection{Cost and caching}
+The free pass depends only on the protein, so $\Hfree(P)$ is cached per
+protein and reused across all ligands; only the coupled pass and the field run
+per (ligand, protein) chunk. This amortises both the $200\times200$
+evaluation matrix and the per-epoch hard-negative refresh, which would
+otherwise be prohibitive given the $L\times A$ cross-attention.
+
+% ===========================================================================
+\section{Anti-shortcut by construction}
+\label{sec:antishortcut}
+
+\df's anti-shortcut property is structural, not behavioural. Three locks,
+each tied to a \emph{measured} failure mode in the companion
+paper~\citep{manitz2026rankbind}:
+
+\begin{enumerate}[leftmargin=*,itemsep=2pt,topsep=2pt]
+  \item \textbf{The free pass is the shortcut, and it is subtracted out.}
+        $\Hfree$ encodes only ligand-agnostic protein identity --- the exact
+        signal that gives $\nullprior$ its Gini $\approx0.995$ and the
+        Phase-1 baselines their top-10 attractor Jaccard $0.54$--$0.67$.
+        $\Delta=\Hcoup-\Hfree$ cancels it.
+  \item \textbf{No additive protein term reaches the scalar.} Remove the
+        ligand and $\tilde{D}\to0$, so $\text{score}\to b_0$, a single global
+        constant. A per-protein prior is \emph{literally unrepresentable} in
+        the score --- the formal analogue of GMSF's conserved-scaffold
+        cancellation.
+  \item \textbf{Limited degrees of freedom.} A sparsity penalty, a
+        total-variation locality penalty along the backbone, and the
+        inherited within-ligand margin cap the protein's ability to smear a
+        global identity across residues to fake conditionality; hard
+        negatives (the same hot protein against competing ligands) force the
+        field to \emph{differ across ligands} or the margin is violated.
+\end{enumerate}
+
+\begin{theorem}[Zero-field invariant]
+\label{thm:zerofield}
+Let the coupled mask equal the free mask (all cross-modal edges removed).
+Then $\Hcoup=\Hfree$, hence $\Delta\equiv0$ and $\tilde{D}\equiv0$, and by
+\Cref{eq:score} $\,\mathrm{score}=b_0$ for every protein in the batch.
+Consequently $\mathrm{std}(\mathrm{score})=0$: the model cannot rank proteins,
+so no per-protein prior is expressible in the score.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+With identical masks the two encoder runs are the same function of the same
+input, so $\Hcoup=\Hfree$ exactly and $\Delta=0$. Every term of
+\Cref{eq:score} other than $b_0$ is linear in $\tilde{D}$, a function of
+$\Delta$ that vanishes with it; therefore the sum is $b_0$ for every node
+configuration. $b_0$ is a shared scalar, independent of $P$.
+\end{proof}
+
+\paragraph{The theorem is a unit test, not a claim.}
+\Cref{thm:zerofield} is asserted in continuous integration
+(\texttt{v5\_rankbind/tests/test\_deltafield.py::test\_zero\_field\_invariant}):
+with coupling forced off, the test checks $e_{\text{res}}=e_{\text{atom}}=0$ to
+$10^{-6}$, that the score equals $b_0$ for every protein, and that the score
+standard deviation across the batch is below $10^{-6}$. Companion tests assert
+the converse (coupling produces a non-zero field and ranking-capable scores),
+ligand-conditionality (same protein, different ligand $\Rightarrow$ different
+score), gradient flow, and matched parameter budget ($d=128\Rightarrow
+\approx\!650$k trainable parameters, within $15\%$ of \method's $627{,}201$,
+so ``more capacity'' is never the explanation). The anti-shortcut guarantee is
+thus \emph{verifiable on every commit} rather than argued in prose.
+
+% ===========================================================================
+\section{Dual output and the interpretability go/no-go}
+\label{sec:dual}
+
+The interaction map is produced, not explained post-hoc: the residue map
+$e_{\text{res}}$ (and signed $c_{\text{res}}$, a mass-conserving share of the
+predicted affinity), the atom map $e_{\text{atom}}$, and the contact map
+$C[i,a]$ all fall out of the same difference field that produces the score.
+They are validated by feeding $e_{\text{res}}$ into the companion paper's
+existing pocket-overlap audit
+(\texttt{evaluation/attn\_annotation\_scan.py}): the within-protein ROC-AUC of
+a per-residue score against the UniProt active-/binding-site mask.
+
+\paragraph{Pre-registered go/no-go.}
+The companion paper established that \method's learned attention
+\emph{de-weights} the catalytic pocket (within-protein ROC-AUC $0.08$--$0.21$,
+i.e.\ far below the chance value $0.5$): the learned weights track
+hydrophobicity, not function. \df's difference field is built to put signal
+\emph{on} the interface. We pre-register the go/no-go that $e_{\text{res}}$
+achieve within-protein ROC-AUC $>0.5$ against the annotated pocket (ideally
+$>0.7$), \emph{flipping} the $0.08$--$0.21$ result. This is reported as a
+\textbf{secondary} metric: the ranking claim does not depend on it, and a null
+result here (the field tracking biophysics rather than the annotated pocket,
+as ESM2 is sequence-trained) is a documented risk (\Cref{sec:limitations}),
+not a refutation of the anti-shortcut guarantee.
+
+% ===========================================================================
+\section{Experiments}
+\label{sec:exp}
+
+\paragraph{Protocol (fixed; results pending).}
+\df\ is trained and evaluated on exactly the companion paper's instruments so
+the two are directly comparable: the BRENDA protein-stratified split (seed
+$42$); the $200\times200$ matrix-ranking metrics (matrix MRR, Hit@$K$); the
+$\nullprior$ probe (top-10 Jaccard, per-row Spearman); matched capacity
+($d=128$, $\approx\!650$k parameters vs.\ \method's $627{,}201$); the
+within-ligand margin loss ($k=4$, $m=1.0$) on hard-negative triplets; three
+seeds $\{42,7,1337\}$; AdamW / cosine / bf16; frozen PLMs. Field regularisers
+(\Cref{sec:recipe}) are small and ablatable.
+
+\paragraph{Pre-registered pass/fail checks.}
+\begin{enumerate}[leftmargin=*,itemsep=1pt,topsep=2pt]
+  \item[(A)] \textbf{Ranking.} Matrix MRR $\ge$ the \method\ v4 default
+        ($0.326\pm0.072$) at matched capacity --- the difference-only score
+        must not cost ranking.
+  \item[(B)] \textbf{Anti-shortcut.} Top-10 Jaccard vs.\ $\nullprior$
+        $\le 0.11$ (ideally $\approx0$) \emph{and} the zero-field unit test
+        passes exactly.
+  \item[(C)] \textbf{Interpretability (secondary).} $e_{\text{res}}$
+        binding/active-site within-protein ROC-AUC $>0.5$, flipping the
+        \method\ $0.08$--$0.21$.
+\end{enumerate}
+
+\paragraph{Status.}
+A single-seed BRENDA-200 pilot (\texttt{tag v6\_deltafield}, run dir
+\texttt{results/v5\_rankbind/20260610-121458\_*\_abl\_deltafield\_v6\_deltafield})
+has finished and confirms check~(B) --- the matrix per-ligand AUC is
+$0.926$, on par with \method\ v5b, and the architecture rides no prior --- but
+\emph{not yet} check~(A): its matrix MRR is $0.206$, below the v4 recipe's
+$0.326$. The difference-only score is therefore anti-shortcut as designed but
+not yet ranking-competitive at this depth. The remaining runs --- the
+GNN-deepened difference-propagation variant (\Cref{sec:prop}), the multi-seed
+sweep, and the enzyme-wide (turnover) transfer --- are in progress; their
+results populate the tables below.
+
+\begin{table}[h]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{6pt}
+  \caption{\df\ vs.\ the \method\ recipe on BRENDA-200 (matched capacity,
+  three seeds). \textbf{Placeholder} --- the multi-seed and GNN-deepened rows
+  are pending; the single-seed pilot is shown for orientation only and is
+  \emph{not} a headline result.}
+  \label{tab:headline}
+  \begin{tabular}{lcccc}
+    \toprule
+    Config & matrix MRR & Hit@10 & matrix \plauc & Top-10 Jac.\ vs.\ \nullprior \\
+    \midrule
+    \method\ v4 (reference)            & $0.326\pm0.072$ & $0.755\pm0.095$ & $0.891$ & $0.035\pm0.030$ \\
+    \method\ v5b (reference)           & $0.427\pm0.123$ & $0.814\pm0.103$ & $0.930$ & $0.000$ \\
+    \midrule
+    \df\ (single-seed pilot, $s{=}42$) & $0.206$         & $0.559$         & $0.926$ & \TODO{read} \\
+    \df\ ($\texttt{prop\_layers}{=}0$, 3 seeds) & \pending & \pending & \pending & \pending \\
+    \df\ (GNN-deepened, 3 seeds)       & \pending & \pending & \pending & \pending \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[h]
+  \centering
+  \footnotesize
+  \setlength{\tabcolsep}{6pt}
+  \caption{Enzyme-wide transfer (BRENDA+SABIO \texttt{turnover}), matching the
+  companion paper's transfer probe. \textbf{Placeholder} --- runs in flight.}
+  \label{tab:transfer}
+  \begin{tabular}{lcccc}
+    \toprule
+    Dataset / Config & matrix MRR & $\rho_{\text{row}}$ vs.\ \nullprior & Top-10 Jac. & zero-field test \\
+    \midrule
+    \texttt{turnover} \df\ (baseline) & \pending & \pending & \pending & \pending \\
+    \texttt{turnover} \df\ (hard-neg) & \pending & \pending & \pending & \pending \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{Interpretability result (secondary).}
+\TODO{pocket-overlap ROC-AUC of $e_{\text{res}}$ vs.\ the v5b $0.08$--$0.21$;
+report whether the go/no-go of \Cref{sec:dual} is met.}
+
+% ===========================================================================
+\section{Training recipe}
+\label{sec:recipe}
+
+\df\ slots into the \method\ v4 training loop. The primary loss is unchanged:
+the within-ligand \texttt{margin\_loss} ($k=4$, $m=1.0$) on
+\texttt{TripletCollator} triplets with hard-negative mining
+(\texttt{hard\_pool\_size} scaled to the train-protein count, per the
+companion paper's pool-coverage lesson), refreshed every $2$--$3$ epochs (the
+field forward is heavier than a bilinear dot). Small, ablatable field
+regularisers shape the difference field:
+\begin{itemize}[leftmargin=*,itemsep=0pt,topsep=2pt]
+  \item $\mathcal{L}_{\text{sparse}}=\lambda_s(\overline{e_{\text{res}}}+\overline{e_{\text{atom}}})$
+        --- localise the interface (with $\lambda$ annealing and a floor on
+        total field energy to avoid collapse);
+  \item $\mathcal{L}_{\text{tv}}=\lambda_{\text{tv}}\,\mathrm{TV}(e_{\text{res}})$
+        along the backbone --- a contiguous pocket, not speckle;
+  \item $\mathcal{L}_{\text{neg}}=\lambda_{\text{neg}}\,
+        \overline{\lVert\tilde{D}(L,P^-)\rVert^2}$ over hard negatives --- a
+        non-binder must induce a near-zero field, training the score-collapse
+        property directly;
+  \item coupling-edge dropout ($p\approx0.15$) --- the GMSF AAM-noise
+        transplant.
+\end{itemize}
+An optional, pretraining-only branch (off the critical path) adds focal-BCE on
+the contact map $C[i,a]$ and distils $\mathrm{ESM2}(\text{holo})-
+\mathrm{ESM2}(\text{apo})$ into $\tilde{D}$ \emph{if} PDBbind contacts become
+available; \df\ must pass margin-only on BRENDA without any of this, since no
+apo/holo pairs exist locally.
+
+% ===========================================================================
+\section{Limitations and open risks}
+\label{sec:limitations}
+
+\begin{itemize}[leftmargin=*,itemsep=0pt,topsep=1pt]
+  \item \textbf{Ranking not yet competitive.} The single-seed pilot ranks
+        below the \method\ recipe (matrix MRR $0.206$ vs.\ $0.326$); the
+        anti-shortcut property holds but the difference-only score must be
+        made to rank as well as the bilinear recipe. This is the central open
+        problem and the motivation for the GNN-deepened propagation.
+  \item \textbf{Sparsity collapse} (most likely failure mode): too-strong
+        $\mathcal{L}_{\text{sparse}}/\mathcal{L}_{\text{neg}}$ drives
+        $\Delta\to0$ everywhere and MRR to chance. Mitigated by $\lambda$
+        annealing and a field-energy floor; monitored in
+        \texttt{train\_log.jsonl}.
+  \item \textbf{Free-pass leakage} via the $[\Hfree;\Delta]$ re-injection in
+        the propagation layer --- if $\Hfree$ reaches the scalar the prior
+        re-enters. Only $\tilde{D}$ routes to the score; gated on the Jaccard
+        audit; the channel is ablated if Jaccard creeps up.
+  \item \textbf{Inherited pocket anti-correlation.} ESM2 is sequence-trained;
+        the field may track biophysics (hydrophobicity) rather than the
+        interface even after subtraction (cf.\ the \method\ v5b finding).
+        Pocket overlap is therefore a \emph{gating} experiment, not a headline.
+  \item \textbf{Compute.} The coupled pass plus $L\times A$ cross-attention
+        over $B\cdot k$ negatives is far heavier than a bilinear dot;
+        free-pass caching per protein and entmax/top-$k$ truncation are
+        load-bearing, and single-head attention with gradient checkpointing
+        may be required.
+  \item \textbf{ChemBERTa BPE $\ne$ heavy atoms.} The token$\to$atom map is
+        approximate (subword-mean fallback); the atom-level map is framed as
+        coarse and validated against RDKit substructures.
+  \item \textbf{Novelty defence.} \df\ is novel \emph{as a composition} (the
+        design panel's prior-art checks found no DTI/PLI paper with this
+        device); the constituent pieces are borrowed and cited. The paper must
+        lead with the concrete null-baseline failure mode and the CI-tested
+        zero-field theorem, not the abstract ``shortcut'' label, or a reviewer
+        will read it as derivative of MONN/TAPB.
+\end{itemize}
+
+% ===========================================================================
+\section{Conclusion and planned work}
+\label{sec:future}
+
+\df\ makes the protein-level shortcut --- diagnosed and behaviourally removed
+in companion work~\citep{manitz2026rankbind} --- \emph{structurally
+unrepresentable} in the score, by reading the score only from the coupled--free
+difference field of a single weight-shared bipartite transformer. The
+guarantee is a verifiable theorem rather than a converged behaviour. This
+manuscript fixes the architecture, the theorem and the protocol; the empirical
+contribution is the object of ongoing work, in priority order:
+\begin{enumerate}[leftmargin=*,itemsep=1pt,topsep=2pt]
+  \item \textbf{Deepen the difference propagation (\Cref{sec:prop}).} Replace
+        the single coupled-mask layer with a genuine residue$\times$atom
+        graph network over the contact graph, to close the ranking gap to the
+        \method\ recipe while preserving the zero-field invariant (which holds
+        for any $\tilde{D}=\tilde{D}(\Delta)$).
+  \item \textbf{Multi-seed BRENDA-200} ($\{42,7,1337\}$) plus the
+        matched-capacity head ablation (\df\ vs.\ bilinear).
+  \item \textbf{Enzyme-wide transfer} on BRENDA+SABIO \texttt{turnover}
+        (runs in flight), to test whether the architectural guarantee
+        survives the $50\times$ scale-up where the recipe needed pool-size
+        rescaling.
+  \item \textbf{Interpretability go/no-go} (\Cref{sec:dual}): does the
+        difference field land on the pocket the recipe's attention avoided?
+\end{enumerate}
+
+% ===========================================================================
+\section*{Declarations}
+
+\paragraph{Data and software availability.}
+\df\ is implemented in the same repository as the companion
+work~\citep{manitz2026rankbind} (\texttt{head\_type=\textquotesingle
+deltafield\textquotesingle} in \texttt{v5\_rankbind/model.py}, config
+\texttt{v5\_rankbind/configs/abl\_deltafield.json}, CI in
+\texttt{v5\_rankbind/tests/test\_deltafield.py}), released at \repourl\ and
+archived under Zenodo DOI \texttt{\zenododoi}. All datasets, splits and
+encoders are those of the companion paper.
+
+\paragraph{Competing interests.} The author declares none.
+
+\paragraph{Author contributions.} C.M.\ conceived and implemented the method
+and wrote the manuscript.
+
+% ===========================================================================
+\bibliographystyle{plainnat}
+\bibliography{../references,references_deltafield}
+
+\end{document}
