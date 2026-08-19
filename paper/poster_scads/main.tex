@@ -1,0 +1,31 @@
+%!TEX TS-program=xelatex
+%===============================================================================
+% RankBind — A0 conference poster on the ScaDS.AI template.
+%
+% Content lives in col1.tex / col2.tex / col3.tex; shared layout definitions in
+% poster-setup.tex. Figures come from figures/*.pdf, produced by render_figs.py
+% out of ../poster_figure_data. Build with ./build.sh (xelatex, run twice).
+%
+% Before changing content, run ./build.sh — it reports each column's natural
+% height against the space available, so overflow is caught as a number rather
+% than discovered in print.
+%===============================================================================
+\documentclass[a0, portrait, language=english, nocomputetimeused]{scadsai-poster-template}
+\input{poster-setup.tex}
+
+\begin{document}
+
+\headlineband
+
+\vspace{\bandgap}
+
+\noindent%
+\begin{minipage}[t][\colh][t]{\colw}\input{col1.tex}\end{minipage}%
+\hspace{\colgap}%
+\begin{minipage}[t][\colh][t]{\colw}\input{col2.tex}\end{minipage}%
+\hspace{\colgap}%
+\begin{minipage}[t][\colh][t]{\colw}\input{col3.tex}\end{minipage}%
+
+\footerqrcodes
+
+\end{document}
