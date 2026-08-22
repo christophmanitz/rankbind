@@ -112,10 +112,13 @@ indistinguishable from chance ($0.43$--$0.53$ against a chance level of
 $0.5$), and their behaviour is indistinguishable from a molecule-blind
 baseline that scores each protein by its training positive rate: the same
 Gini concentration of $\approx 0.995$, and $54$--$67\%$ overlap in the
-top-ten most-scored proteins. In this regime, pooled AUC certifies the
-protein marginal, nothing else. Gini, which we originally suspected of
-detecting a learned pathology, turns out to be a dataset-geometry artefact:
-the molecule-blind baseline produces it without any training.
+top-ten most-scored proteins. Pooled AUC here certifies dataset-level
+regularities rather than ligand-conditional discrimination; which
+regularity carries the points, and which only shapes the score geometry,
+Section~2.1 separates with a construction argument. Gini, which we
+originally suspected of detecting a learned pathology, turns out to be a
+dataset-geometry artefact: the molecule-blind baseline produces it without
+any training.
 
 Section~2.2 introduces \method, a 627k-parameter model built from four
 ingredients that force within-molecule ranking: a margin loss computed inside
@@ -210,7 +213,8 @@ single protein wins every molecule. It is $\approx 0.995$ for all four,
 identical to the molecule-blind prior's, and three of the four models share
 $54$--$67\%$ of their top-ten proteins (the ten largest attractor shares)
 with it. In other words: the models reproduce the per-protein label
-marginal, and pooled AUC rewards them for it. The response maps in
+marginal in their score geometry --- though, as shown below, that marginal
+alone cannot carry pooled test AUC past chance on this split. The response maps in
 Fig.~\ref{fig:respmaps}
 make the mechanism visible: vertical stripes (one protein wins almost every
 molecule) dominate the baselines' matrices, exactly as in the prior's;
@@ -536,9 +540,13 @@ The evidence above reduces to five recommendations.
 
 The central observation of this paper is methodological: on enzyme--substrate
 benchmarks, pooled AUC validates the wrong property. Four published models,
-one of them built on pretrained protein language models, all pass it by
-reproducing the per-protein label marginal, and a molecule-blind baseline
-passes it just as easily. The fix is not a better encoder or a bigger
+one of them built on pretrained protein language models, all pass it while
+reproducing the per-protein label marginal in their score structure. On this
+split the protein marginal itself cannot be the source --- a molecule-blind
+protein prior scores exactly $0.500$, chance, because no test protein has
+training rows; what pooled AUC certifies here are molecule-level regularities
+that the decoy protocol makes trivial to memorise (Section~2.1). The fix is
+not a better encoder or a bigger
 dataset; it is an evaluation change (rank inside each molecule) and a
 training change (optimise that ranking directly). \method{} is the concrete
 instance of the latter, and its ablation shows the mechanism: the margin
@@ -656,6 +664,25 @@ default, learned-query attention pool in the residue-level
 variant) \citep{lin2023esm2}. Two-layer projectors map both to 256-d; the
 score is computed by a low-rank bilinear head with diagonal correction and
 bias (rank 128). Total trainable parameters: 627{,}201.
+
+\subsubsection{A deliberately simple diagnostic architecture}
+\label{sec:simplearch}
+
+We intentionally avoid introducing a novel encoder architecture. Conceptually,
+$\mathbf{z}_L = f_{\mathrm{lig}}(L)$ and $\mathbf{z}_P =
+f_{\mathrm{prot}}(P)$ are frozen-encoder features passed through two-layer
+projectors, and the score is $s(L,P) = \mathbf{z}_L^\top \mathbf{W}
+\mathbf{z}_P + \mathbf{d}^\top(\mathbf{z}_L \odot \mathbf{z}_P) + b$ with
+low-rank $\mathbf{W}$ and diagonal correction $\mathbf{d}$. The bilinear
+form gives an explicit cross-modal interaction at low parameter cost and
+constructs the full score matrix directly, which is what our evaluation
+requires. Neither the encoder components nor the interaction function are
+presented as innovations: \method\ is a controlled experimental vehicle for
+testing whether ligand-conditional ranking reduces shortcut behaviour, not
+an architectural proposal. The design makes the causal comparison clean ---
+the BCE control of Section~2.3 uses identical encoders, split and capacity,
+so any difference in ranking behaviour is attributable to the objective,
+sampling and negative mining rather than to architectural capacity.
 
 Training uses AdamW ($\mathrm{lr} = 3\times10^{-4}$, cosine decay to
 $3\times10^{-5}$, weight decay $10^{-4}$, gradient clipping at 1.0), bf16,
