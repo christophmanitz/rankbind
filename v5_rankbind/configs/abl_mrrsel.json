@@ -1,0 +1,6 @@
+{
+  "extends": "default.json",
+  "name": "abl_mrrsel",
+  "description": "A3/A4 condition B: checkpoint selection on validation MATRIX MRR (ligand-conditional, val positives on the canonical n_matrix pool) instead of pooled val AUC. Architecture, loss, sampler identical to default.",
+  "train": { "early_stop_metric": "val_matrix_mrr" }
+}

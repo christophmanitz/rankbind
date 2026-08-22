@@ -124,6 +124,130 @@ def make_eval_loader(ds, batch_size: int) -> DataLoader:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Validation matrix metrics (A3/A4: ligand-conditional model selection)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class ValMatrixScorer:
+    """Per-epoch ligand-conditional ranking metrics on the canonical eval
+    axes, using VALIDATION-split positives.
+
+    Mirrors eval.build_score_matrix (same pool axes: first n_matrix proteins
+    of sequences.csv order × first n_matrix unique SMILES) so that selecting
+    checkpoints on val_matrix_mrr optimises exactly the metric family the
+    paper reports as primary (matrix MRR / Hit@K) — just on val positives
+    instead of test positives. Pool embeddings are cached once at init; per
+    epoch only the encoders + head run (same cost class as the hard-negative
+    score refresh). Pooled heads only; field heads must not select on this.
+    """
+
+    def __init__(self, cfg: dict, val_ds, chemberta_cache_dir: Path):
+        from common import BRENDADataConfig  # noqa
+        from v5_rankbind.data import load_chemberta
+
+        bconfig = BRENDADataConfig(
+            seed=int(cfg["data"].get("split_seed", 42)),
+            csv_path=str(PROJECT_ROOT / cfg["data"]["csv_path"]),
+            seq_csv=str(PROJECT_ROOT / cfg["data"]["seq_csv"]),
+            val_frac=cfg["data"]["val_frac"],
+            test_frac=cfg["data"]["test_frac"],
+        )
+        pairs = bconfig.load_pairs()
+        seqs = bconfig.load_sequences()
+        self.n_matrix = int(cfg.get("eval", {}).get("n_matrix", 200))
+        self.proteins = list(seqs.keys())[:self.n_matrix]
+        self.smiles_list = pairs["substrate_smiles"].unique().tolist()[:self.n_matrix]
+        prot_axis = set(self.proteins)
+        smi_axis = set(self.smiles_list)
+
+        # Validation positives restricted to the matrix axes (the analogue of
+        # eval.py's test positive_pairs).
+        pos_pairs: list[tuple[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for i in range(len(val_ds)):
+            if val_ds.label_at(i) != 1:
+                continue
+            s, u = val_ds.smiles_at(i), val_ds.protein_at(i)
+            if s in smi_axis and u in prot_axis and (s, u) not in seen:
+                seen.add((s, u))
+                pos_pairs.append((s, u))
+        if not pos_pairs:
+            raise ValueError(
+                "ValMatrixScorer: no validation positives fall inside the "
+                f"n_matrix={self.n_matrix} pool axes — cannot select on "
+                "matrix MRR for this dataset/pool."
+            )
+        self.pos_pairs = pos_pairs
+
+        # Pool embedding cache (raw inputs; encoders run fresh each epoch).
+        self.protein_encoder = cfg["model"].get("protein_encoder", "mean_pool")
+        D_in = cfg["model"]["prot_input_dim"]
+        esm2_dir = PROJECT_ROOT / cfg["data"]["esm2_dir"]
+        if self.protein_encoder == "attn_pool":
+            from v5_rankbind.data import _pad_residues  # noqa
+            max_residues = cfg["model"].get("max_residues", 1024)
+            self.prot_residues: list[torch.Tensor] = []
+            for p in self.proteins:
+                f = esm2_dir / f"{p}.pt"
+                if f.exists():
+                    t = torch.load(f, weights_only=True).to(torch.float32)
+                    if t.ndim == 1:
+                        t = t.unsqueeze(0)
+                    if t.shape[0] > max_residues:
+                        t = t[:max_residues]
+                else:
+                    t = torch.zeros(1, D_in, dtype=torch.float32)
+                self.prot_residues.append(t)
+        else:
+            embs = []
+            for p in self.proteins:
+                embs.append(val_ds.load_protein(p))
+            self.prot_embs = torch.stack(embs)
+        ensure_chemberta_cache(self.smiles_list, chemberta_cache_dir)
+        self.lig_embs = torch.stack(
+            [load_chemberta(s, chemberta_cache_dir).to(torch.float32)
+             for s in self.smiles_list]
+        )
+
+    @torch.no_grad()
+    def __call__(self, model, device, use_bf16: bool = False,
+                 chunk: int = 128) -> dict:
+        from v5_rankbind.metrics import matrix_ranking_metrics
+
+        model.eval()
+        if self.protein_encoder == "attn_pool":
+            from v5_rankbind.data import _pad_residues  # noqa
+            enc_chunk = 32
+            gP_chunks = []
+            for s in range(0, len(self.prot_residues), enc_chunk):
+                e = min(s + enc_chunk, len(self.prot_residues))
+                lens = [int(t.shape[0]) for t in self.prot_residues[s:e]]
+                padded, mask = _pad_residues(self.prot_residues[s:e], lens)
+                with autocast_ctx(use_bf16):
+                    gP_chunks.append(
+                        model.encode_protein(padded.to(device), mask.to(device)))
+            gP_all = torch.cat(gP_chunks, dim=0)
+        else:
+            with autocast_ctx(use_bf16):
+                gP_all = model.encode_protein(self.prot_embs.to(device))
+        with autocast_ctx(use_bf16):
+            fL_all = model.lig(self.lig_embs.to(device))
+
+        n_lig, n_prot = len(self.smiles_list), len(self.proteins)
+        scores = np.zeros((n_lig, n_prot), dtype=np.float32)
+        for i in range(0, n_lig, chunk):
+            fL = fL_all[i:i + chunk].unsqueeze(1)                 # [b, 1, d]
+            b = fL.shape[0]
+            gP = gP_all.unsqueeze(0).expand(b, -1, -1)            # [b, n_prot, d]
+            with autocast_ctx(use_bf16):
+                row = model.head(fL.expand(-1, n_prot, -1), gP)   # [b, n_prot]
+            scores[i:i + chunk] = row.float().cpu().numpy()
+
+        m = matrix_ranking_metrics(
+            scores, self.smiles_list, self.proteins, self.pos_pairs)
+        return {f"val_matrix_{k}": v for k, v in m.items()}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Eval (during training)
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -428,6 +552,29 @@ def main() -> None:
     min_epochs = cfg["train"].get("early_stop_min_epochs", 0)
     es_key = cfg["train"].get("early_stop_metric", "val_global_auc")
 
+    # A3/A4: ligand-conditional model selection. When the selection metric is
+    # a matrix metric, score the canonical eval pool against VALIDATION
+    # positives every epoch (mirrors eval.build_score_matrix axes).
+    val_matrix_scorer: ValMatrixScorer | None = None
+    if es_key.startswith("val_matrix"):
+        if getattr(model, "head_type", None) in FIELD_HEADS:
+            raise SystemExit(
+                f"early_stop_metric={es_key!r} requires pooled-head scoring; "
+                "field heads (deltafield/gearbind) must select on a "
+                "pair-level metric."
+            )
+        t0 = time.time()
+        val_matrix_scorer = ValMatrixScorer(cfg, val_ds, chemberta_cache_dir)
+        manifest.note(
+            f"model selection on {es_key} (ligand-conditional, val positives; "
+            f"pool {len(val_matrix_scorer.proteins)} prot x "
+            f"{len(val_matrix_scorer.smiles_list)} lig, "
+            f"{len(val_matrix_scorer.pos_pairs)} val pos pairs, "
+            f"init {time.time()-t0:.1f}s)"
+        )
+        print(f"[selection] {es_key} on {len(val_matrix_scorer.pos_pairs)} "
+              f"val positives over the n_matrix pool")
+
     train_step = (train_epoch_margin if loss_fn.type == "margin"
                   else train_epoch_bce)
 
@@ -453,6 +600,9 @@ def main() -> None:
             use_bf16=use_bf16,
         )
         val_df, val_metrics = evaluate(model, val_loader, device, use_bf16=use_bf16)
+        if val_matrix_scorer is not None:
+            val_metrics.update(
+                val_matrix_scorer(model, device, use_bf16=use_bf16))
         wall = time.time() - t_start
         lr_now = opt.param_groups[0]["lr"]
 
@@ -463,9 +613,12 @@ def main() -> None:
         log_jsonl.write(json.dumps(row) + "\n")
         pos_over = train_stats.get("train_pos_above_neg_max")
         pos_over_str = f" pos>maxneg={pos_over:.3f}" if pos_over is not None else ""
+        mrr_str = (f" val_matrix_mrr={val_metrics.get('val_matrix_mrr', float('nan')):.4f}"
+                   if val_matrix_scorer is not None else "")
         print(f"[epoch {epoch:3d}] loss={train_stats.get('train_loss', float('nan')):.4f}{pos_over_str} "
               f"val_per_lig_auc={val_metrics['val_per_lig_auc']:.4f} "
-              f"val_global_auc={val_metrics['val_global_auc']:.4f} "
+              f"val_global_auc={val_metrics['val_global_auc']:.4f}"
+              f"{mrr_str} "
               f"({wall:.1f}s, lr={lr_now:.2e})")
 
         metric = val_metrics.get(es_key, float("nan"))
