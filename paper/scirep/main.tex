@@ -171,6 +171,10 @@ cheapest possible shortcut, the second the chance level.
 \method\ on the BRENDA-200 test pool. Pooled AUC is passed by every
 baseline; per-molecule ranking AUC (chance 0.5) sits at chance, and
 the top-ten proteins overlap heavily with the molecule-blind prior.
+The prior's pooled AUC is exactly $0.500$: the split is
+protein-disjoint, so every test pair receives the same global-rate
+fallback, and protein prevalence alone cannot lift pooled test AUC on
+this split.
 Matrix per-molecule AUC evaluates the same metric on the full
 $200\times200$ pool ($n=30$ held-out positive molecules); the test-pair
 version rests on $n=4$. \method\ values are three-seed means; its
@@ -188,7 +192,7 @@ MolTrans    & 0.937 & 0.470 & 0.05 & 0.987 \\
 GraphDTA    & 0.869 & 0.533 & 0.67 & 0.995 \\
 GEMS        & 0.633 & 0.514 & 0.67 & 0.995 \\
 \midrule
-\nullprior\ & n/a  & n/a  & 1.00 & 0.995 \\
+\nullprior\ & 0.500  & n/a  & 1.00 & 0.995 \\
 \midrule
 \method\ (v4, 3 seeds) & 0.634 & 0.891 & 0.035 & 0.787 \\
 \bottomrule
@@ -211,6 +215,22 @@ Fig.~\ref{fig:respmaps}
 make the mechanism visible: vertical stripes (one protein wins almost every
 molecule) dominate the baselines' matrices, exactly as in the prior's;
 \method's matrix is de-striped (Gini $0.787$).
+
+The dissociation has two axes, and our instruments separate them. The
+protein axis is structural: copying the per-protein label marginal shapes
+the score matrix into the prior's stripes, but it cannot raise pooled test
+AUC, which the split caps at chance ($0.500$, Table~\ref{tab:phase1}). The
+molecule axis is where the pooled points come from: ligands recur across
+the protein split, and the decoy protocol assigns each one a fixed role
+(quantified in the Discussion), so
+molecular memorisation alone reaches $0.915$ pooled AUC on this test
+split---DrugBAN and MolTrans sit at or barely above that line, GEMS and
+GraphDTA below it, and \method{} deliberately below both. A controlled
+synthetic experiment isolates the metric side of the critique: two
+artificial $200\times200$ worlds with statistically identical pooled AUC
+($0.897$ vs.\ $0.890$) differ by $4.4\times$ in within-molecule ranking
+MRR ($0.049$ vs.\ $0.217$), so pooled AUC cannot distinguish
+shortcut-driven from signal-driven performance even in principle.
 
 \begin{figure}[t]
   \centering
@@ -535,12 +555,18 @@ ranking best of all seven datasets.
 
 Three limitations bound the claims. First, the transfer numbers are
 single-seed; the BRENDA-200 headline is three-seed, the enzyme-wide peaks
-are not yet. Second, the decoy construction of the BRENDA corpus leaks
-pair-level statistics into the inputs (a linear probe on the frozen
-embeddings reaches pair-level AUC $\approx 0.86$ before any training;
-\method{} removes most of this signal, leaving $0.68$), so absolute pooled
-values on this corpus should be read with that in mind; the seven-dataset
-control comparison is the cleaner instrument. Third, the residue-level
+are not yet. Second, the BRENDA decoy protocol assigns each molecule a
+fixed role: of the 4{,}604 unique ligands, 1{,}417 appear only as documented
+substrates and 3{,}157 only as decoy carriers (99.3\% label-pure), and the
+protein-stratified split holds out proteins, not molecules, so molecule
+identity alone predicts the label wherever a ligand recurs. A linear probe
+on frozen ChemBERTa/ESM2 features reaches test AUC $0.887$ from the ligand
+vector alone ($0.833$ with both blocks), and the per-ligand training-rate
+prior reaches $0.915$ pooled AUC on the full test split---above three of
+the four published baselines. Absolute pooled values on this corpus are
+therefore bounded below by molecular memorisation; \method{} sits at
+$0.634$, and the seven-dataset control comparison is the cleaner
+instrument. Third, the residue-level
 attention does not find catalytic pockets (it de-weights them), so any
 future pocket-selection scheme should use structural priors (AlphaFold
 structures plus a pocket detector) rather than learned attention.
