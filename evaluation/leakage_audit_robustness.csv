@@ -1,0 +1,4 @@
+run,n_full,mrr_full,h10_full,n_notwin,mrr_notwin,h10_notwin,dmrr
+default_v4 s42 (canonical),34,0.2465,0.6471,34,0.2465,0.6471,0.0
+abl_attn_pool_v5b s42,34,0.3162,0.7059,34,0.3162,0.7059,0.0
+abl_bce_only_v4 s7 (control),41,0.0214,0.0244,41,0.0214,0.0244,0.0

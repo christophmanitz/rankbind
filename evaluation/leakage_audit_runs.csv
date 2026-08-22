@@ -1,0 +1,9 @@
+dataset,scaffold_overlap,mol_overlap,seq_jac_median,seq_jac_max,seq_pairs_ge_03,seq_pairs_ge_09,exact_seq_twins,decoy_tanimoto_max,n_decoys,n_prots,n_train_prot,n_test_prot,n_pairs,L1 proteins disjoint,L2 no duplicate TEST-positive rows,L5 no cross-split protein with identical sequence,L6 every decoy protein has a positive,split deterministic seed=42,ALL_PASS,HARD_FAIL,status
+BRENDA-200 (primary),0.7148,0.536,0.095,1.0,26,6,2,0.799,6457.0,882,618,132,9632,True,True,False,True,True,False,False,CAVEATS
+km_with_decoys,0.6771,0.6427,0.141,1.0,406,58,16,0.799,27451.0,9500,6650,1425,57248,True,True,False,True,True,False,False,CAVEATS
+kcat_km_with_decoys,0.7405,0.6514,0.109,0.988,122,13,0,1.0,30480.0,3815,2671,572,43006,True,True,True,True,True,True,False,PASS
+turnover_with_decoys,0.7149,0.6474,0.118,1.0,174,23,8,0.798,25189.0,5672,3972,850,42173,True,True,False,True,True,False,False,CAVEATS
+davis,1.0,1.0,0.172,0.62,12,0,0,,,379,267,56,25772,True,True,True,,True,True,False,PASS
+kiba,1.0,1.0,0.17,0.714,9,0,0,,,229,161,34,117657,True,True,True,,True,True,False,PASS
+bindingdb_kd,0.4851,0.3973,0.243,1.0,93,35,0,,,1413,991,211,46117,True,True,True,,True,True,False,PASS
+esp,0.9819,0.991,0.163,1.0,554,116,7,,,11436,8006,1715,28900,True,True,False,,True,False,False,CAVEATS
