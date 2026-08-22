@@ -1,0 +1,3 @@
+model,rho_rate_colscore
+RankBind default_v4 s42,-0.166
+BCE control (abl_bce_only s7),0.206

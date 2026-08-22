@@ -1,0 +1,9 @@
+dataset,n_train_prot,rate_median,rate_cv,rate_gini,n_test_pairs,test_pos_rate
+BRENDA-200,618,0.385,0.663,0.361,1404,0.33
+km_with_decoys,6650,1.0,0.394,0.187,8638,0.503
+kcat_km_with_decoys,2671,0.333,0.64,0.33,6797,0.29
+turnover_with_decoys,3972,1.0,0.509,0.271,6440,0.409
+davis,267,0.044,1.017,0.47,3808,0.057
+kiba,161,0.209,0.655,0.357,19432,0.173
+bindingdb_kd,991,0.083,1.257,0.647,6312,0.161
+esp,8006,0.5,0.618,0.311,4320,0.497
