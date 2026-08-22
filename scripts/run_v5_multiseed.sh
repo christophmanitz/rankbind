@@ -31,7 +31,16 @@ PROJECT_ROOT="$(pwd)"
 
 CONFIGS=(default abl_no_sampler abl_no_margin abl_no_bilinear abl_bce_only)
 SEEDS=(7 1337)
-TAG_BASE="v4"
+TAG_BASE="v5"
+
+# Protocol-A note (2026-08-22): data.split_seed is pinned to 42 in
+# default.json, so cfg["seed"] only varies init/shuffling — every seed now
+# trains AND evaluates on the canonical protein split. The existing clean
+# seed-42 anchors stay valid:
+#   default / abl_no_sampler / abl_no_bilinear -> v4 tag (seed 42 on disk)
+#   abl_no_margin / abl_bce_only               -> NO seed-42 run exists;
+#                                                 submit it here under v5.
+NEED_S42=(abl_no_margin abl_bce_only)
 
 TARGET="${1:-all}"
 if [ "$TARGET" != "all" ]; then
@@ -51,7 +60,12 @@ for cfg in "${CONFIGS[@]}"; do
     done
 done
 
-TOTAL=$(( ${#CONFIGS[@]} * ${#SEEDS[@]} ))
+for cfg in "${NEED_S42[@]}"; do
+    echo "Submitting missing anchor: cfg=${cfg} seed=42"
+    bash "$PROJECT_ROOT/scripts/run_v5_rankbind.sh" "${cfg}" paula "${TAG_BASE}" 42
+done
+
+TOTAL=$(( ${#CONFIGS[@]} * ${#SEEDS[@]} + ${#NEED_S42[@]} ))
 echo
 echo "Submitted ${TOTAL} job(s). Watch with:  squeue -u \$USER"
-echo "Aggregate when done:  python scripts/aggregate_multiseed.py"
+echo "Aggregate when done:  ~/rankbind_revision/reeval_true_split.py (honest matrix metrics)"

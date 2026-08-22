@@ -108,7 +108,7 @@ def build_score_matrix(
     """
     from common import BRENDADataConfig  # noqa
     bconfig = BRENDADataConfig(
-        seed=config_dict["seed"],
+        seed=int(config_dict["data"].get("split_seed", 42)),
         csv_path=str(PROJECT_ROOT / config_dict["data"]["csv_path"]),
         seq_csv=str(PROJECT_ROOT / config_dict["data"]["seq_csv"]),
         val_frac=config_dict["data"]["val_frac"],
@@ -210,7 +210,7 @@ def build_score_matrix_deltafield(
     """
     from common import BRENDADataConfig  # noqa
     bconfig = BRENDADataConfig(
-        seed=config_dict["seed"],
+        seed=int(config_dict["data"].get("split_seed", 42)),
         csv_path=str(PROJECT_ROOT / config_dict["data"]["csv_path"]),
         seq_csv=str(PROJECT_ROOT / config_dict["data"]["seq_csv"]),
         val_frac=config_dict["data"]["val_frac"],
@@ -283,7 +283,7 @@ def build_score_matrix_gearbind(
     """
     from common import BRENDADataConfig  # noqa
     bconfig = BRENDADataConfig(
-        seed=config_dict["seed"],
+        seed=int(config_dict["data"].get("split_seed", 42)),
         csv_path=str(PROJECT_ROOT / config_dict["data"]["csv_path"]),
         seq_csv=str(PROJECT_ROOT / config_dict["data"]["seq_csv"]),
         val_frac=config_dict["data"]["val_frac"],
@@ -358,6 +358,14 @@ def main() -> None:
         sys.exit(1)
     manifest_data = json.loads(manifest_path.read_text())
     cfg = load_config(manifest_data["config_path"])
+    # The CLI --seed override applied at TRAINING time lives only in the
+    # training process; re-loading the config file here would silently
+    # resolve to its base seed and evaluate on a different (often the
+    # canonical) split than the model trained on. Always trust
+    # config_resolved, which records what training actually used.
+    resolved = manifest_data.get("config_resolved", {})
+    if "seed" in resolved:
+        cfg["seed"] = resolved["seed"]
     if args.n_matrix is not None:
         cfg["eval"]["n_matrix"] = args.n_matrix
     device = torch.device(args.device)
@@ -365,6 +373,18 @@ def main() -> None:
     # Build test dataset from same split
     chemberta_cache = PROJECT_ROOT / "data" / "chemberta_cache"
     train_ds, val_ds, test_ds, split_stats = build_datasets(cfg, chemberta_cache)
+
+    # Guard against silent split drift: the datasets rebuilt here MUST match
+    # the split recorded at training time, otherwise all test metrics below
+    # compare the model against data it may have trained on.
+    m_split = manifest_data.get("split", {})
+    for key in ("n_train_pairs", "n_val_pairs", "n_test_pairs"):
+        if key in m_split and m_split[key] != split_stats[key]:
+            raise SystemExit(
+                f"[guard] split mismatch for {key}: manifest={m_split[key]} "
+                f"rebuilt={split_stats[key]} — refusing to evaluate. The run "
+                "was trained on a different split than eval just rebuilt."
+            )
 
     # DeltaField needs the per-token cache to exist before run_test_set iterates.
     if cfg["model"].get("ligand_encoder") == "per_token":

@@ -608,11 +608,12 @@ def collate_pointwise(batch: list[dict]) -> dict:
 def prepare_frames(config_dict: dict) -> tuple:
     """Return (train_df, val_df, test_df, sequences, bconfig).
 
-    Applies protein-based split (seed=42), drops proteins without ESM2 or
-    without a sequence entry.
+    Applies protein-based split. The split is drawn with
+    data.split_seed (default 42) so it stays FIXED across training-seed
+    sweeps; cfg["seed"] only controls init/shuffling.
     """
     bconfig = BRENDADataConfig(
-        seed=config_dict["seed"],
+        seed=int(config_dict["data"].get("split_seed", 42)),
         csv_path=str(PROJECT_ROOT / config_dict["data"]["csv_path"]),
         seq_csv=str(PROJECT_ROOT / config_dict["data"]["seq_csv"]),
         val_frac=config_dict["data"]["val_frac"],

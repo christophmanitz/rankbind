@@ -47,7 +47,11 @@ for entry in "${PEAKS[@]}"; do
         continue
     fi
     cfg_rel="sweeps/hp_brenda_sabio/${dataset}_with_decoys_hp${hp}"
-    tag="bs_v2_hp${hp}"
+    # bs_v3 = same sweep configs, re-trained under Protocol A
+    # (data.split_seed pinned to 42; --seed varies init only). The old
+    # bs_v2_hp*_s7/_s1337 runs were evaluated on the wrong split — do not
+    # reuse their test metrics (see ~/rankbind_revision/PLAN.md, C2).
+    tag="bs_v3_hp${hp}"
     for seed in "${SEEDS[@]}"; do
         if [ "$WHICH" = "dryrun" ]; then
             echo "[dryrun] cfg=$cfg_rel tag=${tag}_s${seed} seed=$seed walltime=$walltime partition=$PARTITION"

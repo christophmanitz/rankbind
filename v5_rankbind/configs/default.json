@@ -9,7 +9,8 @@
     "seq_csv":  "data/sequences/sequences.csv",
     "esm2_dir": "data/esm2_embeddings",
     "val_frac": 0.15,
-    "test_frac": 0.15
+    "test_frac": 0.15,
+    "split_seed": 42
   },
 
   "sampler": {
