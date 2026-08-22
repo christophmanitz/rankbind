@@ -583,9 +583,12 @@ for. ESP shows that the trade is not inherent to the recipe: there, real
 per-molecule signal exists, and \method{} keeps pooled AUC at $0.891$ while
 ranking best of all seven datasets.
 
-Three limitations bound the claims. First, the transfer numbers are
-single-seed; the BRENDA-200 headline is three-seed, the enzyme-wide peaks
-are not yet. Second, the BRENDA decoy protocol assigns each molecule a
+Three limitations bound the claims. First, the transfer table reports the
+seed-42 anchor per dataset; supplementary extra seeds under the pinned-split
+protocol exist for the three BRENDA+SABIO families and show substantial
+seed spread (matrix MRR ranges $0.199$--$0.280$ for kcat/$K_M$,
+$0.242$--$0.344$ for turnover), so transfer point estimates carry roughly
+$\pm 0.05$ seed noise; the BRENDA-200 headline is three-seed throughout. Second, the BRENDA decoy protocol assigns each molecule a
 fixed role: of the 4{,}604 unique ligands, 1{,}417 appear only as documented
 substrates and 3{,}157 only as decoy carriers (99.3\% label-pure), and the
 protein-stratified split holds out proteins, not molecules, so molecule
