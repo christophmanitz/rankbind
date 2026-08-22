@@ -183,7 +183,9 @@ fallback, and protein prevalence alone cannot lift pooled test AUC on
 this split.
 Matrix per-molecule AUC evaluates the same metric on the full
 $200\times200$ pool ($n=30$ held-out positive molecules); the test-pair
-version rests on $n=4$. \method\ values are three-seed means.}
+version rests on $n=4$. Baseline rows are one training run each (pinned
+checkpoints); \method\ values are three-seed means, with per-molecule AUC
+ranging $0.855$--$0.891$ and Gini $0.787$--$0.824$ across seeds.}
 \label{tab:phase1}
 \small
 \setlength{\tabcolsep}{5pt}
@@ -345,9 +347,12 @@ Two protocol checks confirm the headline is not an artefact of choices made
 during training. First, checkpoint selection: the default selects the epoch
 by validation pooled AUC --- the very metric this paper criticises. Re-running
 all three seeds with selection on validation matrix \mrr{} instead (last row)
-gives $0.183 \pm 0.055$, statistically indistinguishable from the default:
-the ranking result does not depend on the selection rule, and if anything
-pooled-AUC selection slightly favours generalising checkpoints here. Second,
+gives $0.183 \pm 0.055$, with a range overlapping the default's: the ranking
+result does not switch on the selection rule. The variant is also
+handicapped by design --- only two positive molecules fall in the
+validation split, so matrix-\mrr{} selection there is effectively selection
+on noise, which is why we keep pooled-AUC selection as the default and
+report both. Second,
 an earlier three-seed sweep had coupled the data split to the training seed,
 and its evaluation silently rebuilt only the canonical split, so the
 seed-7/1337 runs were scored largely on their own training pairs; every
@@ -448,7 +453,12 @@ an independent enzyme--substrate corpus \citep{kroll2023esp}, and three
 kinase affinity benchmarks from the Therapeutics Data Commons
 \citep{huang2021tdc}: BindingDB\textsubscript{$K_d$}, Davis
 \citep{davis2011kinase} and KIBA \citep{tang2014kiba}, binarised at the
-DeepDTA convention \citep{ozturk2018deepdta}. Each dataset is evaluated on
+DeepDTA convention \citep{ozturk2018deepdta}. One caveat on provenance:
+the decoys in the BRENDA-derived corpora are author-generated
+(Section~4.1), so part of each pooled-AUC inflation is a property of this
+benchmark design; the synthetic construction of Section~2.1, which uses no
+decoys at all, carries the metric-side argument to settings where none are
+injected. Each dataset is evaluated on
 the same instruments as BRENDA-200: a matched 200-protein pool, \mrr{} and
 Hit@K within each molecule, the molecule-blind prior as reference.
 
@@ -677,7 +687,11 @@ does not ride the protein marginal.
 \mrr{} is the mean reciprocal rank of the true target protein within each
 test molecule's row of the $200\times200$ matrix (chance $\approx 0.029$
 at 200 candidates); Hit@$K$ is the fraction of test molecules whose true
-target lands in the top-$K$. Per-molecule AUC is computed per row and
+target lands in the top-$K$. Ranks count strictly higher-scoring columns,
+so ties are resolved optimistically; trained models' continuous scores make
+this immaterial, but a constant scorer would receive \mrr{} $=1$, which is
+why the prior's ranking metrics are excluded from comparison.
+Per-molecule AUC is computed per row and
 averaged; the test-pair variant rests on $n=4$ on BRENDA-200, the matrix
 variant on $n=30$ (a column is positive iff it is a held-out test positive,
 all other columns are negative). Pooled AUC and AUPR are reported for
