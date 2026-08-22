@@ -89,8 +89,8 @@ def fig_dissociation():
         ("MolTrans",  0.937, 0.470, WARM, (-24, -12)),
         ("GraphDTA",  0.869, 0.533, WARM, (0, 26)),
         ("GEMS",      0.633, 0.514, WARM, (0, 26)),
-        ("RankBind v4",  0.634, 0.891, BLUE, (18, -14)),
-        ("RankBind v5b", 0.659, 0.930, BLUE_D, (18, 8)),
+        ("RankBind",  0.618, 0.878, BLUE, (18, -14)),
+        ("+ attn pool (1 seed)", 0.646, 0.930, BLUE_D, (18, 8)),
     ]
     fig, ax = plt.subplots(figsize=(FIGW, FIGW * 0.46))
     ax.axhspan(0.33, 0.5, color=WARM, alpha=0.08, lw=0)
@@ -146,8 +146,8 @@ def fig_respmaps():
 # ------------------------------------------------------- 3. shortcut overlap
 def fig_jaccard():
     rows = [
-        ("RankBind v5b", 0.018, BLUE_D),
-        ("RankBind v4", 0.035, BLUE),
+        ("RankBind", 0.018, BLUE),
+        ("+ attn pool (1 seed)", 0.000, BLUE_D),
         ("MolTrans", 0.05, WARM),
         ("DrugBAN", 0.54, WARM),
         ("GEMS", 0.67, WARM),
@@ -175,12 +175,13 @@ def fig_jaccard():
 # ------------------------------------------------------- 4. ablation
 def fig_ablation():
     rows = [
-        ("BCE only (matched control)", 0.015, 0.002, WARM),
-        ("− margin loss", 0.041, 0.023, WARM),
-        ("− balanced sampler", 0.183, 0.060, NEUTRAL),
-        ("− bilinear head (MLP)", 0.243, 0.161, NEUTRAL),
-        ("RankBind v4 (full)", 0.326, 0.072, BLUE),
-        ("+ residue attention", 0.427, 0.123, BLUE_D),
+        ("BCE only (matched control)", 0.014, 0.002, WARM),
+        ("− margin loss", 0.020, 0.006, WARM),
+        ("− bilinear head (MLP)", 0.140, 0.087, NEUTRAL),
+        ("− balanced sampler", 0.147, 0.070, NEUTRAL),
+        ("+ matrix-MRR selection", 0.183, 0.055, NEUTRAL),
+        ("RankBind (full)", 0.220, 0.026, BLUE),
+        ("+ residue attention (1 seed)", 0.316, 0.000, BLUE_D),
     ]
     fig, ax = plt.subplots(figsize=(FIGW, FIGW * 0.42))
     y = np.arange(len(rows))
@@ -192,11 +193,11 @@ def fig_ablation():
         ax.text(v + s + 0.024, i, f"{v:.3f}", va="center", fontsize=21,
                 color=INK, fontweight="bold")
     ax.set_yticks(y, [r[0] for r in rows], fontsize=20)
-    ax.set_xlim(0, 0.64)
+    ax.set_xlim(0, 0.48)
     ax.set_xlabel("matrix MRR   (3 seeds, mean ± s.d.)",
                   labelpad=12, fontsize=20)
     ax.axvline(0.029, color=INK2, lw=2, ls=(0, (5, 4)), zorder=5)
-    ax.text(0.042, 5.62, "chance 0.029", color=INK2, fontsize=19, va="center")
+    ax.text(0.042, 6.55, "chance 0.029", color=INK2, fontsize=19, va="center")
     ax.grid(axis="x", color=GRID, lw=1.2)
     ax.set_axisbelow(True)
     ax.spines["left"].set_color(AXIS)

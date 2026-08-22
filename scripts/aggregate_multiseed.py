@@ -45,11 +45,12 @@ from attractor_diagnosis import gini, compute_attractor_scores  # noqa: E402
 # ──────────────────────────────────────────────────────────────────────────────
 
 CANONICAL_SEED42_TAG = {
-    "default":         "v4",
+    "default":         "v4",   # seed-42 anchor on disk (untagged v4 dir)
     "abl_no_sampler":  "v4",
     "abl_no_bilinear": "v4",
-    "abl_no_margin":   "v3",   # BCE — no collator, unchanged by hard negs
-    "abl_bce_only":    "v2",   # BCE + MLP — Phase-1 equivalent control
+    "abl_no_margin":   "v5",   # Protocol-A sweep (2026-08-22): v5_s42 anchor
+    "abl_bce_only":    "v5",
+    "abl_mrrsel":      "v5",   # A4 condition B: matrix-MRR checkpoint selection
     "abl_attn_pool":   "v5b",  # Stage-(b) of Phase-4 plan: residue attn-pool
 }
 SWEEP_SEEDS = [42, 7, 1337]
@@ -61,6 +62,7 @@ CONFIG_META = {
     "abl_no_bilinear": ("mlp_concat", "N/A"),
     "abl_no_margin":   ("bilinear", "128"),
     "abl_bce_only":    ("mlp_concat", "N/A"),
+    "abl_mrrsel":      ("bilinear", "128"),
     "abl_attn_pool":   ("bilinear+attn", "128"),
 }
 
@@ -94,6 +96,31 @@ def read_seed(manifest_path: Path) -> int | None:
     return None
 
 
+def read_split_seed(manifest_path: Path) -> int | None:
+    """Return data.split_seed if the manifest pins it (Protocol A onward)."""
+    m = json.loads(manifest_path.read_text())
+    cfg = m.get("config_resolved", {})
+    data = cfg.get("data", {}) if isinstance(cfg.get("data"), dict) else {}
+    if "split_seed" in data:
+        return int(data["split_seed"])
+    return None
+
+
+def is_split_clean(manifest_path: Path) -> bool:
+    """True iff the run trained AND evaluated on the canonical protein split.
+
+    Protocol A (commit 6d685af) pins data.split_seed=42; earlier runs drew
+    the training split from --seed while eval always rebuilt seed-42, so
+    every *_s7/_s1337 run before the fix leaked ~86% of its 'test' pairs
+    into training. Clean = split pinned to 42, or training seed itself 42
+    (then train-split and eval-split coincide by construction).
+    """
+    seed = read_seed(manifest_path)
+    if seed == 42:
+        return True
+    return read_split_seed(manifest_path) == 42
+
+
 def top_k_attractors(M: np.ndarray, k: int = 10) -> set[int]:
     return set(np.argsort(-compute_attractor_scores(M))[:k].tolist())
 
@@ -124,11 +151,14 @@ def find_runs_by_config() -> dict[str, dict[int, Path]]:
         # override on the v4 sweep ({v4_s<seed>} — used by the existing
         # multiseed script for v3/v2 configs), OR a seed-override on the
         # config's own canonical sweep ({canonical_42}_s<seed>).
-        if (tag == canonical_42
-                or tag.startswith("v4_s")
-                or tag.startswith(canonical_42 + "_s")):
+        seed_suffix_re = re.compile(r"_s(?:42|7|1337)$")
+        if tag == canonical_42 or seed_suffix_re.search(tag):
             seed = read_seed(run_dir)
             if seed is None or seed not in SWEEP_SEEDS:
+                continue
+            # Protocol-A guard: skip runs evaluated on a split they trained
+            # on (pre-6d685af *_s7/_s1337 runs — see commit 6d685af).
+            if not is_split_clean(run_dir):
                 continue
             # If duplicates exist for this (config, seed), keep the latest
             # (sorted() above guarantees chronological order, so last write wins).
@@ -190,7 +220,7 @@ def main() -> None:
     # then Phase-4 stage-(b) attn_pool variant.
     order = [
         "default", "abl_no_sampler", "abl_no_bilinear",
-        "abl_no_margin", "abl_bce_only",
+        "abl_no_margin", "abl_bce_only", "abl_mrrsel",
         "abl_attn_pool",
     ]
     rows.sort(key=lambda r: order.index(r["config"]))

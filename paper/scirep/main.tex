@@ -66,9 +66,9 @@ binding. We introduce \method, a 627k-parameter model that optimises
 within-molecule ranking directly, with four ingredients: a within-ligand
 margin loss, online hard-negative mining, protein-balanced sampling and a
 low-rank bilinear head. On a protein-stratified split \method\ lifts \mrr{}
-from 0.015 (binary cross-entropy control) to $0.326 \pm 0.072$ (three seeds)
+from 0.014 (binary cross-entropy control) to $0.220 \pm 0.026$ (three seeds)
 and cuts the top-ten overlap with the molecule-blind baseline from
-$0.54$--$0.67$ to $0.035$. The pattern is not a BRENDA artefact. A matched
+$0.54$--$0.67$ to $0.02$. The pattern is not a BRENDA artefact. A matched
 BCE control reproduces the dissociation on all seven datasets we test
 (pooled AUC $0.84$--$0.98$, near-chance ranking), and \method\ circumvents it
 on every catalytic enzyme dataset, with \mrr{} $7$--$25\times$ the control.
@@ -124,11 +124,11 @@ Section~2.2 introduces \method, a 627k-parameter model built from four
 ingredients that force within-molecule ranking: a margin loss computed inside
 each molecule's own candidate set, online hard-negative mining, a
 protein-balanced sampler, and a low-rank bilinear interaction head. Three
-seeds on the same split lift \mrr{} from $0.015$ for a binary cross-entropy
-(BCE) control to $0.326 \pm 0.072$, and the per-molecule ranking AUC from
-chance to $0.891$. The ablation isolates the margin loss as the dominant
-lever: removing it collapses \mrr{} by a factor of eight and pooled AUC
-rebounds to $0.95$ (the shortcut returns the moment the ranking objective
+seeds on the same split lift \mrr{} from $0.014$ for a binary cross-entropy
+(BCE) control to $0.220 \pm 0.026$, and the per-molecule ranking AUC from
+chance to $0.878 \pm 0.020$. The ablation isolates the margin loss as the dominant
+lever: removing it collapses \mrr{} by a factor of eleven and pooled AUC
+rebounds to $0.91$ (the shortcut returns the moment the ranking objective
 is gone).
 
 Section~2.3 adds a residue-level attention pool over per-residue ESM2
@@ -197,7 +197,7 @@ GEMS        & 0.633 & 0.514 & 0.67 & 0.995 \\
 \midrule
 \nullprior\ & 0.500  & n/a  & 1.00 & 0.995 \\
 \midrule
-\method\ (v4, 3 seeds) & 0.634 & 0.891 & 0.035 & 0.787 \\
+\method\ (3 seeds) & 0.618 & 0.878 & 0.018 & 0.798 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -218,7 +218,8 @@ alone cannot carry pooled test AUC past chance on this split. The response maps 
 Fig.~\ref{fig:respmaps}
 make the mechanism visible: vertical stripes (one protein wins almost every
 molecule) dominate the baselines' matrices, exactly as in the prior's;
-\method's matrix is de-striped (Gini $0.787$).
+\method's matrix is de-striped (Gini $0.787$--$0.824$ across seeds,
+$0.798$ on average).
 
 The dissociation has two axes, and our instruments separate them. The
 protein axis is structural: copying the per-protein label marginal shapes
@@ -297,12 +298,16 @@ ingredients that shape training are:
 
 \begin{table}[t]
 \centering
-\caption{Three-seed means $\pm$ s.d.\ on BRENDA-200, ordered by \mrr{}.
+\caption{Three-seed means $\pm$ s.d.\ on BRENDA-200 under the pinned-split
+protocol (every seed trains and evaluates on the canonical protein split),
+ordered by \mrr{}.
 The top row is a matched-capacity BCE control with the same encoders and
-split. Removing the margin loss collapses \mrr{} by $8\times$ and pooled
-AUC rebounds to $0.95$: the shortcut returns. Removing the balanced sampler
-costs $44\%$. The MLP head matches the bilinear head's mean but has
-$2.2\times$ wider seed spread.}
+split. Removing the margin loss collapses \mrr{} by $11\times$ and pooled
+AUC rebounds to $0.91$: the shortcut returns. Removing the balanced sampler
+costs $33\%$. The MLP head trails the bilinear head on the mean and has
+$3.3\times$ wider seed spread. The last row re-selects checkpoints by
+validation matrix \mrr{} instead of validation pooled AUC (selection-rule
+sensitivity check).}
 \label{tab:ablation}
 \small
 \setlength{\tabcolsep}{4pt}
@@ -311,31 +316,46 @@ $2.2\times$ wider seed spread.}
 Config & \mrr{} & Hit@10 & Pooled AUC & Gini-res. & Top-10 \\
        &        &        &            &           & overlap \\
 \midrule
-BCE control (MLP head)        & 0.015$\pm$0.002 & 0.000 & 0.948$\pm$0.030 & $-0.002$ & 0.587$\pm$0.137 \\
-$-$ margin loss               & 0.041$\pm$0.023 & 0.098 & 0.948$\pm$0.028 & $-0.043$ & 0.018 \\
-$-$ balanced sampler          & 0.183$\pm$0.060 & 0.422 & 0.630$\pm$0.038 & $-0.074$ & 0.037 \\
-$-$ bilinear head (MLP)       & 0.243$\pm$0.161 & 0.520 & 0.660$\pm$0.040 & $-0.182$ & 0.018 \\
-\textbf{\method\ v4}          & \textbf{0.326$\pm$0.072} & 0.755$\pm$0.095 & 0.634$\pm$0.010 & $-0.210$ & 0.035$\pm$0.030 \\
-$+$ residue attention pool    & \textbf{0.427$\pm$0.123} & 0.814$\pm$0.103 & 0.659$\pm$0.028 & $-0.216$ & 0.018 \\
+BCE control (MLP head)        & 0.014$\pm$0.002 & 0.000$\pm$0.000 & 0.918$\pm$0.003 & $-0.003$ & 0.674$\pm$0.140 \\
+$-$ margin loss               & 0.020$\pm$0.006 & 0.029$\pm$0.029 & 0.914$\pm$0.004 & $-0.058$ & 0.018$\pm$0.030 \\
+$-$ balanced sampler          & 0.147$\pm$0.070 & 0.441$\pm$0.153 & 0.611$\pm$0.016 & $-0.068$ & 0.000$\pm$0.000 \\
+$-$ bilinear head (MLP)       & 0.140$\pm$0.087 & 0.373$\pm$0.170 & 0.634$\pm$0.067 & $-0.149$ & 0.222$\pm$0.385 \\
+\textbf{\method}              & \textbf{0.220$\pm$0.026} & 0.598$\pm$0.045 & 0.618$\pm$0.005 & $-0.197$ & 0.018$\pm$0.030 \\
+$+$ matrix-MRR selection      & 0.183$\pm$0.055 & 0.539$\pm$0.103 & 0.584$\pm$0.035 & $-0.176$ & 0.092$\pm$0.034 \\
+$+$ residue attention pool$^*$ & \textbf{0.316} & 0.706 & 0.646 & $-0.245$ & 0.000 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 Table~\ref{tab:ablation} orders the ingredients by what they buy. The margin
-loss is the dominant contribution: without it \mrr{} falls from $0.326$ to
-$0.041$ and pooled AUC jumps back to $0.95$ (the model stops ranking and
+loss is the dominant contribution: without it \mrr{} falls from $0.220$ to
+$0.020$ and pooled AUC jumps back to $0.91$ (the model stops ranking and
 re-learns the protein marginal). The balanced sampler is a secondary positive
-($-44\%$ when removed). The bilinear head does not win on the mean
-($0.243$ for MLP versus $0.326$ for bilinear is partly seed luck) but cuts
-the seed-to-seed standard deviation from $0.161$ to $0.072$; we keep it for
+($-33\%$ when removed). The bilinear head does not win on the mean
+($0.140$ for MLP versus $0.220$ for bilinear, with overlapping seed ranges)
+but cuts
+the seed-to-seed standard deviation from $0.087$ to $0.026$; we keep it for
 stability, not for a mean win. Hard-negative mining, which is part of the
-default rather than an ablation, lifts \mrr{} from $0.201$ (v3, random
-negatives) to $0.326$ ($+62\%$).
+default rather than an ablation, lifts \mrr{} from $0.201$ to $0.247$ on the
+shared seed-42 anchor ($+23\%$; single-seed comparison).
+
+Two protocol checks confirm the headline is not an artefact of choices made
+during training. First, checkpoint selection: the default selects the epoch
+by validation pooled AUC --- the very metric this paper criticises. Re-running
+all three seeds with selection on validation matrix \mrr{} instead (last row)
+gives $0.183 \pm 0.055$, statistically indistinguishable from the default:
+the ranking result does not depend on the selection rule, and if anything
+pooled-AUC selection slightly favours generalising checkpoints here. Second,
+an earlier three-seed sweep had coupled the data split to the training seed,
+and its evaluation silently rebuilt only the canonical split, so the
+seed-7/1337 runs were scored largely on their own training pairs; every
+multiseed number in this paper comes from the corrected pinned-split protocol
+described in Section~\ref{sec:seeds}.
 
 The BCE control row deserves emphasis: with the same encoders, the same
 data and the same split, ordinary pair-wise BCE reproduces the published
-baselines' pathology in full: pooled AUC $0.948$, \mrr{} $0.015$, top-ten
-overlap with the molecule-blind prior $0.587$. The shortcut behaviour is
+baselines' pathology in full: pooled AUC $0.918$, \mrr{} $0.014$, top-ten
+overlap with the molecule-blind prior $0.674$. The shortcut behaviour is
 produced by the training recipe, not by the encoders or the data. A BCE
 auxiliary loss added to the margin objective (weight 0.5) lifts pooled AUC
 by only $+0.03$ ($0.623 \to 0.655$), nowhere near $0.80$: the high pooled
@@ -371,9 +391,11 @@ top-ten overlap of each model with the molecule-blind prior.
 The default mean-pools the per-residue ESM2 tensor. We replace the mean pool
 with a learned-query attention pool
 ($\alpha_i = \mathrm{softmax}(\mathbf{q}^\top \mathrm{LN}(\mathbf{e}_i)/\sqrt{d})$)
-over the per-residue embeddings, adding 3{,}840 parameters ($+0.6\%$). The
-three-seed result is \mrr{} $0.427 \pm 0.123$ (from $0.326 \pm 0.072$),
-Hit@10 $0.814$, per-molecule AUC $0.930$ (seed 42).
+over the per-residue embeddings, adding 3{,}840 parameters ($+0.6\%$). On
+the shared seed-42 anchor the variant reaches \mrr{} $0.316$ (from $0.247$),
+Hit@10 $0.706$, per-molecule AUC $0.930$ --- a single-seed observation
+($^*$ in Table~\ref{tab:ablation}), not yet replicated across seeds under
+the pinned-split protocol.
 
 \begin{figure}[t]
   \centering
@@ -554,8 +576,8 @@ loss is what keeps the model honest, the balanced sampler and hard-negative
 mining stabilise it, and the bilinear head buys seed-to-seed stability.
 
 The cost deserves to be stated plainly. On BRENDA-200, relative to the BCE
-control, \method{} trades pooled AUC down from $0.95$ to $0.63$ while \mrr{}
-goes from $0.015$ to $0.326$. We consider this the right trade: the high
+control, \method{} trades pooled AUC down from $0.92$ to $0.62$ while \mrr{}
+goes from $0.014$ to $0.220$. We consider this the right trade: the high
 pooled value was never valid, and the ranking value is what the task asks
 for. ESP shows that the trade is not inherent to the recipe: there, real
 per-molecule signal exists, and \method{} keeps pooled AUC at $0.891$ while
@@ -573,7 +595,7 @@ vector alone ($0.833$ with both blocks), and the per-ligand training-rate
 prior reaches $0.915$ pooled AUC on the full test split---above three of
 the four published baselines. Absolute pooled values on this corpus are
 therefore bounded below by molecular memorisation; \method{} sits at
-$0.634$, and the seven-dataset control comparison is the cleaner
+$0.618$, and the seven-dataset control comparison is the cleaner
 instrument. Third, the residue-level
 attention does not find catalytic pockets (it de-weights them), so any
 future pocket-selection scheme should use structural priors (AlphaFold
@@ -700,6 +722,18 @@ Seeds $\{42, 7, 1337\}$ are used for all BRENDA-200 configurations
 (Sections~2.1--2.3); the transfer runs of Section~2.4 are single-seed (seed
 42). Hardware: one NVIDIA A30 GPU per run, about 1.5\,h per seed for the
 default and 4\,h for the residue-level variant.
+
+\subsubsection{Seeds and split pinning}
+\label{sec:seeds}
+
+The protein-stratified train/val/test split is drawn once with a dedicated
+random seed (42) that is independent of the training seed; training seeds
+$\{42, 7, 1337\}$ vary only weight initialisation, batch shuffling and
+negative sampling. Evaluation rebuilds the split from the recorded
+configuration and refuses to run if it does not match the one stored in a
+run's manifest, which rules out scoring a model on pairs it trained on ---
+an error mode we caught in an internal audit of an earlier sweep and
+corrected before aggregating any of the numbers reported here.
 
 \subsection{Attention audit}
 \label{sec:audit}

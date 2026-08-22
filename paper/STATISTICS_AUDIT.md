@@ -15,7 +15,7 @@ Audit date: 2026-08-22. Scope: every quantitative claim in
 
 | claim | unit | n | seeds | uncertainty |
 |---|---|---:|---:|---|
-| baselines' matrix MRR ≈ chance / RankBind 0.326±0.072 | molecule row (30 rows) | 30 molecules × 200 proteins | 3 {42,7,1337} | per-seed SD + paired bootstrap CI over molecules |
+| baselines' matrix MRR ≈ chance / RankBind 0.220±0.026 | molecule row (30 rows) | 30 molecules × 200 proteins | 3 {42,7,1337} | per-seed SD + paired bootstrap CI over molecules |
 | pooled AUC of 4 baselines vs prior cap | pair | full split (~1.9k test pairs) | 1 (pinned ckpts) | construction argument (null table) replaces CIs |
 | lig_prior pooled AUC 0.915 / prot_prior 0.500 | pair | full split | deterministic | exact by construction |
 | decoy-probe AUCs (0.887/0.833/0.603) | pair | 9632 rows, split-stratified folds | 5 folds | fold SD in probe JSON |
@@ -44,14 +44,19 @@ Audit date: 2026-08-22. Scope: every quantitative claim in
 
 ## Pending items (blocked on cluster jobs)
 
-- [PENDING] Protocol-B model selection (`abl_mrrsel`, SLURM 27295847-49):
-  sensitivity table A4 — will state whether headline numbers depend on the
-  checkpoint-selection protocol.
-- [PENDING] Protocol-A multiseed sweep (split pinned via
-  `data.split_seed=42`): refreshes the 3-seed table under pinned splits;
-  current Table 2 cites the 20260423 sweep whose split was drawn inside
-  each run (same params → identical split, verified for s42 anchors).
-- [PENDING] Transfer per-seed CSVs (A5): bs peak-seed additions landing;
-  transfer stays labelled single-seed until then.
-- [PENDING] Phase E reviewer files (JCIM_REVIEW.md etc.) are deliberately
-  deferred until these land, so reviewers see final tables.
+- [DONE 2026-08-22] A4 selection sensitivity (`abl_mrrsel`, 3 seeds):
+  matrix-MRR checkpoint selection gives 0.183±0.055 vs default
+  (pooled-AUC selection) 0.220±0.026 — overlapping ranges, conclusion
+  selection-invariant; reported as a Table-2 row + protocol paragraph.
+- [DONE 2026-08-22] Protocol-A multiseed sweep: **invalidated the old
+  table** (referee finding #15, commit 6d685af — pre-fix s7/s1337 runs
+  trained on their own split but were evaluated on the canonical one,
+  ~86% train-pair leakage). Canonical numbers now from the pinned-split
+  v5 sweep + clean seed-42 anchors:
+  `phase2_rankbind_multiseed.csv` (regenerated);
+  old file preserved as `phase2_rankbind_multiseed_v4_INVALID_leak.csv`.
+- [PENDING] Transfer per-seed CSVs (A5): km_with_decoys hp3400 s1337
+  (SLURM 27295353) still running; s42/s7 landed for all three bs_v3
+  datasets, turnover s1337 landed.
+- [PENDING] Phase E reviewer files: run once A5 lands so reviewers see
+  final transfer tables.
