@@ -41,7 +41,7 @@
 \newcommand{\nullprior}{\textsc{null\_prot\_prior}\xspace}
 \newcommand{\mrr}{matrix MRR}
 
-\title{\textbf{\method: Ligand-Conditional Ranking for\\ Drug--Target Interaction}}
+\title{\textbf{\method: Ligand-Conditional Ranking for\\ Drug--Target Interaction Benchmarks}}
 
 \author[1]{Christoph Manitz}
 \affil[1]{Leipzig University, Germany \\
@@ -62,7 +62,7 @@ molecule at or near chance, and that a molecule-blind baseline, which scores
 every protein by its training positive rate, produces the same scores, the
 same concentration (Gini $\approx 0.995$) and up to two thirds of the same
 top proteins. Pooled AUC in this regime certifies memorisable
-dataset-level regularities, not binding. We introduce \method, a 627k-parameter model that optimises
+dataset-level regularities, not ligand-conditional discrimination. We introduce \method, a 627k-parameter model that optimises
 within-molecule ranking directly, with four ingredients: a within-ligand
 margin loss, online hard-negative mining, protein-balanced sampling and a
 low-rank bilinear head. On a protein-stratified split \method\ lifts \mrr{}
@@ -161,7 +161,8 @@ recipe. Code and all three-seed manifests are released.
 
 We use BRENDA-200, a $200\times200$ subset of the BRENDA enzyme--substrate
 pairs: 200 enzymes and 200 molecules, each pair labelled as documented
-substrate or not, with explicit non-substrate pairs (decoys) and a
+substrate or not (``binds'' remains shorthand for ``is a documented
+substrate of'', Section~1), with explicit non-substrate pairs (decoys) and a
 protein-stratified split (seed 42): test proteins never appear in training.
 The test set contains 1404 pairs over the 200 unique proteins and 200 unique
 molecules. For every model we build the full $200 \times 200$ score matrix on
@@ -185,7 +186,7 @@ Matrix per-molecule AUC evaluates the same metric on the full
 $200\times200$ pool ($n=30$ held-out positive molecules); the test-pair
 version rests on $n=4$. Baseline rows are one training run each (pinned
 checkpoints); \method\ values are three-seed means, with per-molecule AUC
-ranging $0.855$--$0.891$ and Gini $0.787$--$0.824$ across seeds.}
+ranging $0.855$--$0.891$ and Gini $0.783$--$0.824$ across seeds.}
 \label{tab:phase1}
 \small
 \setlength{\tabcolsep}{5pt}
@@ -222,7 +223,7 @@ alone cannot carry pooled test AUC past chance on this split. The response maps 
 Fig.~\ref{fig:respmaps}
 make the mechanism visible: vertical stripes (one protein wins almost every
 molecule) dominate the baselines' matrices, exactly as in the prior's;
-\method's matrix is de-striped (Gini $0.787$--$0.824$ across seeds,
+\method's matrix is de-striped (Gini $0.783$--$0.824$ across seeds,
 $0.798$ on average).
 
 The dissociation has two axes, and our instruments separate them. The
@@ -290,7 +291,7 @@ ingredients that shape training are:
         set}, which is exactly what \mrr{} measures.
   \item \textbf{Online hard-negative mining.} At each epoch start the model
         re-scores the (positive-molecule $\times$ train-protein) matrix and
-        draws the $k$ negatives from the 50 highest-scoring non-binding
+        draws the $k$ negatives from the 50 highest-scoring non-substrate
         proteins per anchor, instead of uniformly at random.
   \item \textbf{Protein-balanced sampling.} Each epoch draws a near-equal
         number of positive and negative pairs \emph{per protein}, so
@@ -309,7 +310,7 @@ The top row is a matched-capacity BCE control with the same encoders and
 split. Removing the margin loss collapses \mrr{} by $11\times$ and pooled
 AUC rebounds to $0.91$: the shortcut returns. Removing the balanced sampler
 costs $33\%$. The MLP head trails the bilinear head on the mean and has
-$3.3\times$ wider seed spread. The last row re-selects checkpoints by
+$3.4\times$ wider seed spread. The last row re-selects checkpoints by
 validation matrix \mrr{} instead of validation pooled AUC (selection-rule
 sensitivity check).}
 \label{tab:ablation}
@@ -427,7 +428,7 @@ residues, annotated from UniProt, rank at the median 3rd attention
 percentile of their own protein, and attention weights separate annotated
 from unannotated residues with ROC-AUC $0.21$ (chance $0.5$; Fig.~\ref{fig:attention}).
 What the reproducible rank order tracks is hydrophobicity: the within-protein
-Spearman between attention and Kyte--Doolittle hydropathy is $+0.24$ with
+Spearman between attention and Kyte--Doolittle hydropathy is $+0.25$ with
 the same sign in $58/60$ proteins.
 
 The mechanism is therefore per-residue normalisation before pooling, not
@@ -511,10 +512,12 @@ $0.84$--$0.98$ at near-chance \mrr{} ($0.014$--$0.098$), exactly the
 dissociation of Section~2.1, now on six corpora beyond BRENDA-200. Third,
 \method\ circumvents it on every catalytic enzyme dataset: \mrr{} $0.228$,
 $0.219$, $0.344$ against control values of $0.029$, $0.030$, $0.014$
-($7$--$25\times$), with the per-row correlation to the prior at or below
-zero. ESP, the one independent enzyme--substrate corpus, is the instructive
+($7$--$25\times$), with the per-row correlation to the prior between
+$+0.01$ and $-0.06$, an order of magnitude below the control's $+0.09$
+to $+0.20$. ESP, the one independent enzyme--substrate corpus, is the
+instructive
 exception: it carries genuine per-molecule signal (both models reach
-per-molecule AUC $\geq 0.85$), and once the hard-negative pool is scaled to
+per-molecule AUC around $0.85$ or above), and once the hard-negative pool is scaled to
 its protein count \method{} ranks best of all seven datasets (\mrr{} $0.387$,
 $4\times$ the control) while keeping pooled AUC at $0.891$. Where real
 signal exists, no shortcut trade-off is needed.
@@ -531,7 +534,7 @@ refutation of the diagnosis.
 
 The BRENDA+SABIO rows also resolve a scaling question from our first
 transfer run. With the BRENDA-200-tuned hard-negative pool of 50, \mrr{} on
-these datasets was $0.134$, $0.023$ and $0.040$ (two to fourteen times
+these datasets was $0.134$, $0.023$ and $0.040$ (1.6--9.7 times
 below the BRENDA-200 headline) while the correlation with the prior stayed
 at zero. The drop looked like a loss of signal but was a coverage artefact:
 a pool of 50 covers a quarter of BRENDA-200's training proteins but less
@@ -551,7 +554,8 @@ The evidence above reduces to five recommendations.
         metrics.} Score each pair by the protein's training positive rate.
         If your model matches this baseline in pooled AUC and overlaps it
         in the top-$K$ proteins (Jaccard $\geq 0.30$), pooled AUC certifies
-        the prior, not binding. The probe is one matrix multiply.
+        the prior, not ligand-conditional discrimination. The probe is one
+        matrix multiply.
   \item \textbf{Optimise within-molecule ranking, not pair-wise
         classification.} A margin loss over negatives sampled inside each
         molecule's candidate set is the single largest lever in our
@@ -599,6 +603,7 @@ Three limitations bound the claims. First, the transfer table reports the
 seed-42 anchor per dataset; supplementary extra seeds under the pinned-split
 protocol exist for the three BRENDA+SABIO families and show substantial
 seed spread (matrix MRR ranges $0.199$--$0.280$ for kcat/$K_M$,
+$0.166$--$0.219$ for $K_M$,
 $0.242$--$0.344$ for turnover), so transfer point estimates carry roughly
 $\pm 0.05$ seed noise; the BRENDA-200 headline is three-seed throughout. Second, the BRENDA decoy protocol assigns each molecule a
 fixed role: of the 4{,}604 unique ligands, 1{,}417 appear only as documented
@@ -665,7 +670,7 @@ BindingDB\textsubscript{$K_d$} from the Therapeutics Data Commons
 \citep{ozturk2018deepdta} (Davis/BindingDB $\text{p}K_d \geq 7$, KIBA score
 $\geq 12.1$) and split cold-target (unseen test proteins). For each dataset
 a 200-protein evaluation pool is matched so that the pool proteins overlap
-the training set to a comparable degree across datasets (65--71\%).
+the training set to a comparable degree across datasets (61--71\%).
 
 \subsection{Null baselines and metrics}
 \label{sec:metrics}

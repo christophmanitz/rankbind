@@ -20,7 +20,7 @@ Audit date: 2026-08-22. Scope: every quantitative claim in
 | lig_prior pooled AUC 0.915 / prot_prior 0.500 | pair | full split | deterministic | exact by construction |
 | decoy-probe AUCs (0.887/0.833/0.603) | pair | 9632 rows, split-stratified folds | 5 folds | fold SD in probe JSON |
 | synthetic dissociation (4.4× MRR @ matched AUC) | simulation | 50 sims/regime | fixed base seed | sim-level spread in CSV |
-| seven-dataset transfer | benchmark | per-dataset matrices (n varies) | 1 (+bs peak-seed adds pending) | marked as single-seed in text |
+| seven-dataset transfer | benchmark | per-dataset matrices (n varies) | 3 for BRENDA+SABIO families (bs_transfer_per_seed.csv), 1 elsewhere | marked as single-seed in text; seed ranges in limitations |
 
 ## Checks performed
 
@@ -55,8 +55,12 @@ Audit date: 2026-08-22. Scope: every quantitative claim in
   v5 sweep + clean seed-42 anchors:
   `phase2_rankbind_multiseed.csv` (regenerated);
   old file preserved as `phase2_rankbind_multiseed_v4_INVALID_leak.csv`.
-- [PENDING] Transfer per-seed CSVs (A5): km_with_decoys hp3400 s1337
-  (SLURM 27295353) still running; s42/s7 landed for all three bs_v3
-  datasets, turnover s1337 landed.
-- [PENDING] Phase E reviewer files: run once A5 lands so reviewers see
-  final transfer tables.
+- [DONE 2026-08-22] Transfer per-seed CSVs (A5): km_with_decoys hp3400
+  s1337 landed (SLURM 27295353, MRR 0.166). Full table:
+  `evaluation/attractor_results/bs_transfer_per_seed.csv` (12 rows).
+  Seed ranges: kcat/KM 0.199--0.280, KM 0.166--0.219, turnover
+  0.242--0.344. Limitations paragraph updated accordingly.
+- [DONE 2026-08-22] Phase E reviewer files: JCIM/ML/SCIREP reviews +
+  REVIEW_TRIAGE.md (commit b77da58); agent number-audit applied same day
+  (Gini range 0.783--0.824, pool overlap 61--71%, KM seed range,
+  transfer multiple 1.6--9.7x).

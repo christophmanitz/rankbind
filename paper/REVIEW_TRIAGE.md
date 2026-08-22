@@ -36,9 +36,10 @@ Status as of 2026-08-22.
 8. **Commit score matrices** to satisfy data availability (JCIM #6):
    few MB each, gitignore exception needed.
 
-## Terminology pass (SCIREP #2/#3) — partially done
+## Terminology pass (SCIREP #2/#3) — DONE 2026-08-22
 
-Abstract headline still says "Drug–target interaction models" (kept:
-standard term), but every claim sentence now scopes to enzyme–substrate.
-Remaining: replace residual "binding(s)" in §2.2/§2.5 recipe text with
-"substrate annotation" where the label semantics matter.
+Agent line-by-line scan of all term occurrences: title scoped to
+"Drug--Target Interaction Benchmarks"; abstract + recipe "not binding" →
+"not ligand-conditional discrimination"; "non-binding" → "non-substrate"
+in the hard-negative method text; shorthand declaration repeated in §2.1.
+All remaining occurrences verified OK-general / OK-shorthand / OK-affinity.
