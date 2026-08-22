@@ -1,0 +1,703 @@
+%===============================================================================
+% RankBind, Scientific Reports manuscript.
+%
+% This is a rewrite of paper/main.tex with a single narrative line:
+%   pooled AUC on enzyme-substrate benchmarks certifies protein popularity,
+%   not binding. A molecule-blind null baseline detects the shortcut; a
+%   four-ingredient ranking recipe (RankBind) breaks it; both transfer.
+%
+% The long paper (../main.tex, ../paper.md) is kept untouched as the
+% evidence appendix. Every number here is regenerable from the repository
+% (see ../main.tex Appendix and REPRODUCIBILITY.md for commands).
+%
+% Build: make            (needs `module load texlive` on the cluster)
+%===============================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{microtype}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{authblk}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{url}
+\usepackage[hidelinks,colorlinks=true,linkcolor=black,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage{natbib}
+\usepackage{lmodern}
+\usepackage{xspace}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+
+\graphicspath{{../figures/}{../poster_scads/figures/}}
+
+\newcommand{\method}{RankBind\xspace}
+\newcommand{\nullprior}{\textsc{null\_prot\_prior}\xspace}
+\newcommand{\mrr}{matrix MRR}
+
+\title{\textbf{\method: Ligand-Conditional Ranking for\\ Drug--Target Interaction}}
+
+\author[1]{Christoph Manitz}
+\affil[1]{Leipzig University, Germany \\
+\texttt{christoph.manitz@uni-leipzig.de}}
+
+\date{}
+
+\begin{document}
+\maketitle
+
+%===============================================================================
+\begin{abstract}
+Drug--target interaction models on enzyme--substrate data are usually scored
+with pooled discrimination metrics such as global AUC. On the BRENDA corpus
+we show that four published models (DrugBAN, MolTrans, GraphDTA, GEMS) reach
+pooled AUC between 0.63 and 0.95 while ranking the true target of each
+molecule at or near chance, and that a molecule-blind baseline, which scores
+every protein by its training positive rate, produces the same scores, the
+same concentration (Gini $\approx 0.995$) and up to two thirds of the same
+top proteins. Pooled AUC in this regime certifies protein popularity, not
+binding. We introduce \method, a 627k-parameter model that optimises
+within-molecule ranking directly, with four ingredients: a within-ligand
+margin loss, online hard-negative mining, protein-balanced sampling and a
+low-rank bilinear head. On a protein-stratified split \method\ lifts \mrr{}
+from 0.015 (binary cross-entropy control) to $0.326 \pm 0.072$ (three seeds)
+and cuts the top-ten overlap with the molecule-blind baseline from
+$0.54$--$0.67$ to $0.035$. The pattern is not a BRENDA artefact. A matched
+BCE control reproduces the dissociation on all seven datasets we test
+(pooled AUC $0.84$--$0.98$, near-chance ranking), and \method\ circumvents it
+on every catalytic enzyme dataset, with \mrr{} $7$--$25\times$ the control.
+Code, configurations and per-run manifests are public.
+\end{abstract}
+
+%===============================================================================
+\section{Introduction}
+\label{sec:intro}
+
+Predicting whether a small molecule binds a given protein is a standard
+problem in computational drug discovery and a routine benchmark for deep
+representation learning. On the enzyme--substrate subtask, several published
+architectures (DrugBAN~\citep{bai2023drugban},
+MolTrans~\citep{huang2021moltrans}, GraphDTA~\citep{nguyen2021graphdta},
+GEMS~\citep{wang2023gems}) report pooled discrimination values that make
+the benchmark look solved. These numbers are computed over all pairs at once:
+global AUC asks whether, across the whole test set, bound pairs score higher
+than unbound ones. That question can be answered without looking at the
+molecule. If some proteins have many positive pairs in the training data and
+others have none, a model that scores every pair of a popular protein high
+will pass pooled AUC, no matter how it treats the molecule. That is an
+instance of shortcut learning~\citep{geirhos2020shortcut}: the model
+exploits a spurious correlation that is predictive on the training
+distribution but irrelevant to the task. Leakage and
+cold-target generalisation problems of this kind have been documented for DTI
+and molecular benchmarks before~\citep{pahikkala2015,wallach2018mostligands,
+kapoor2023leakage,jiang2020dtigeneralisation}; here we show the failure in
+its purest form and an architecture that avoids it.
+
+The task a DTI model is actually asked to solve is per molecule: for a given
+compound, put its true targets above the rest. We therefore evaluate every
+model twice: with pooled AUC (the probability that a random bound pair
+outscores a random unbound pair; 0.5 is chance, 1.0 perfect separation), and
+with ranking metrics computed within each molecule's row of a fixed score
+matrix. On a protein-stratified split of the BRENDA enzyme--substrate corpus
+(a curated enzyme-kinetics database; we use ``binds'' as shorthand for
+``is a documented substrate of''), all four published models pass the first
+test and fail the second (Section~2.1). Their per-molecule ranking AUC is
+indistinguishable from chance ($0.43$--$0.53$ against a chance level of
+$0.5$), and their behaviour is indistinguishable from a molecule-blind
+baseline that scores each protein by its training positive rate: the same
+Gini concentration of $\approx 0.995$, and $54$--$67\%$ overlap in the
+top-ten most-scored proteins. In this regime, pooled AUC certifies the
+protein marginal, nothing else. Gini, which we originally suspected of
+detecting a learned pathology, turns out to be a dataset-geometry artefact:
+the molecule-blind baseline produces it without any training.
+
+Section~2.2 introduces \method, a 627k-parameter model built from four
+ingredients that force within-molecule ranking: a margin loss computed inside
+each molecule's own candidate set, online hard-negative mining, a
+protein-balanced sampler, and a low-rank bilinear interaction head. Three
+seeds on the same split lift \mrr{} from $0.015$ for a binary cross-entropy
+(BCE) control to $0.326 \pm 0.072$, and the per-molecule ranking AUC from
+chance to $0.891$. The ablation isolates the margin loss as the dominant
+lever: removing it collapses \mrr{} by a factor of eight and pooled AUC
+rebounds to $0.95$ (the shortcut returns the moment the ranking objective
+is gone).
+
+Section~2.3 adds a residue-level attention pool over per-residue ESM2
+embeddings ($+0.6\%$ parameters, $+0.10$ absolute \mrr{}), together with an
+audit of what that attention actually does. Section~2.4 tests the diagnosis
+and the recipe on seven datasets, each scored against a matched BCE control
+trained on the same data. The control reproduces the BRENDA dissociation
+everywhere (pooled AUC $0.84$--$0.98$, near-chance ranking); \method\
+circumvents it on every catalytic enzyme dataset ($7$--$25\times$ the
+control's \mrr{}) and on one independent enzyme--substrate corpus, ESP, it
+ranks best of all seven datasets ($0.387$) without giving up pooled AUC.
+Two kinase affinity benchmarks (Davis, KIBA) bound the claim: there the
+molecule-blind prior carries no ranking signal, so there is no shortcut to
+circumvent.
+
+The practical conclusion is short: on enzyme--substrate data, pooled AUC is
+not a meaningful success gate, and a molecule-blind null baseline should be
+run before reporting it. Section~2.5 distils the findings into a five-point
+recipe. Code and all three-seed manifests are released.
+
+%===============================================================================
+\section{Results}
+\label{sec:results}
+
+\subsection{Pooled AUC certifies protein popularity on BRENDA-200}
+\label{sec:shortcut}
+
+We use BRENDA-200, a $200\times200$ subset of the BRENDA enzyme--substrate
+pairs: 200 enzymes and 200 molecules, each pair labelled as documented
+substrate or not, with explicit non-substrate pairs (decoys) and a
+protein-stratified split (seed 42): test proteins never appear in training.
+The test set contains 1404 pairs over the 200 unique proteins and 200 unique
+molecules. For every model we build the full $200 \times 200$ score matrix on
+this pool, which lets us compute both pooled metrics and per-molecule
+ranking on the same object. Two molecule-blind references accompany the
+models: \nullprior{} scores each pair with the protein's training positive
+rate only; a random baseline scores uniformly. The first captures the
+cheapest possible shortcut, the second the chance level.
+
+\begin{table}[t]
+\centering
+\caption{The four published baselines, the molecule-blind prior, and
+\method\ on the BRENDA-200 test pool. Pooled AUC is passed by every
+baseline; per-molecule ranking AUC (chance 0.5) sits at chance, and
+the top-ten proteins overlap heavily with the molecule-blind prior.
+Matrix per-molecule AUC evaluates the same metric on the full
+$200\times200$ pool ($n=30$ held-out positive molecules); the test-pair
+version rests on $n=4$. \method\ values are three-seed means; its
+per-molecule AUC is seed-42.}
+\label{tab:phase1}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lcccc}
+\toprule
+Model & Pooled AUC & Per-molecule AUC & Top-10 overlap & Gini \\
+      &            & (matrix, $n{=}30$) & with prior & \\
+\midrule
+DrugBAN     & 0.954 & 0.433 & 0.54 & 0.995 \\
+MolTrans    & 0.937 & 0.470 & 0.05 & 0.987 \\
+GraphDTA    & 0.869 & 0.533 & 0.67 & 0.995 \\
+GEMS        & 0.633 & 0.514 & 0.67 & 0.995 \\
+\midrule
+\nullprior\ & n/a  & n/a  & 1.00 & 0.995 \\
+\midrule
+\method\ (v4, 3 seeds) & 0.634 & 0.891 & 0.035 & 0.787 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:phase1} shows the dissociation. DrugBAN, MolTrans and
+GraphDTA clear pooled AUC of $0.85$ while ranking the true target of each
+molecule at chance; GEMS, which already uses pretrained ESM2
+features, does no better. The Gini coefficient measures how evenly the top
+ranks are shared: we count, for each protein, the fraction of molecules for
+which it is the top-scoring partner (its attractor share), and take the Gini
+coefficient of that distribution; 0.5 means the shares are even, 1.0 that a
+single protein wins every molecule. It is $\approx 0.995$ for all four,
+identical to the molecule-blind prior's, and three of the four models share
+$54$--$67\%$ of their top-ten proteins (the ten largest attractor shares)
+with it. In other words: the models reproduce the per-protein label
+marginal, and pooled AUC rewards them for it. The response maps in
+Fig.~\ref{fig:respmaps}
+make the mechanism visible: vertical stripes (one protein wins almost every
+molecule) dominate the baselines' matrices, exactly as in the prior's;
+\method's matrix is de-striped (Gini $0.787$).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\linewidth]{fig_respmaps.pdf}
+  \caption{Score response maps on the $200 \times 200$ test pool (rows:
+  molecules, columns: proteins, darker = higher score). A vertical stripe is
+  a protein that wins almost every molecule. GraphDTA's map is the
+  molecule-blind prior's; \method's is de-striped.}
+  \label{fig:respmaps}
+\end{figure}
+
+The dissociation is not an artefact of our ranking metric. The per-molecule
+AUC that prior work reports on test pairs rests on $n=4$ here (only four
+test molecules have both a positive and a negative pair) and cannot support
+a conclusion on its own. Evaluating the same metric on the full
+$200\times200$ matrix (a column counts as positive iff it is a held-out test
+positive; every other column is a negative) recovers $n=30$ and confirms the
+reading: all four baselines sit between $0.43$ and $0.53$, i.e.\ at chance
+(Tab.~\ref{tab:phase1}). We therefore use \mrr{} and Hit@$K$ on the same
+matrix as the primary metrics; both are well-defined for every test
+molecule. \mrr{} is the mean reciprocal rank of the true target within a
+molecule's row: 1.0 would mean the true target always ranks first, and
+uniform random ranking over 200 candidates gives $\approx 0.029$.
+
+Gini deserves a verdict of its own, because it misled us at the start. We
+conjectured, following discussions of ``attractor bias'' in DTI score
+matrices, that a Gini near 1 would reveal a learned pathology. It does not:
+a molecule-blind baseline produces the same value from the label marginal
+alone. Gini is a dataset-geometry artefact on this corpus. We report it as a
+descriptor and do not use it as a success metric.
+
+\subsection{\method: four ingredients that enforce within-molecule ranking}
+\label{sec:method}
+
+\method{} freezes both encoders, ChemBERTa (384-d) for the molecule
+\citep{chithrananda2020chemberta} and ESM2-650M (1280-d) for the protein
+\citep{lin2023esm2}, and trains only two 256-d projectors and a low-rank
+bilinear head
+($s(L,P) = f(L)^\top (UV^\top + \mathrm{diag}(d))\, g(P) + b$, rank 128;
+65{,}793 head parameters). Total trainable budget: 627{,}201. The four
+ingredients that shape training are:
+
+\begin{enumerate}[leftmargin=*,itemsep=1pt,topsep=2pt]
+  \item \textbf{Within-ligand margin loss.} For each anchor $(L, P^+)$ and
+        $k=4$ sampled negatives,
+        $\mathcal{L} = \max(0,\ m - s(L,P^+) + s(L,P^-_i))$ with $m=1.0$.
+        The loss compares scores \emph{inside one molecule's candidate
+        set}, which is exactly what \mrr{} measures.
+  \item \textbf{Online hard-negative mining.} At each epoch start the model
+        re-scores the (positive-molecule $\times$ train-protein) matrix and
+        draws the $k$ negatives from the 50 highest-scoring non-binding
+        proteins per anchor, instead of uniformly at random.
+  \item \textbf{Protein-balanced sampling.} Each epoch draws a near-equal
+        number of positive and negative pairs \emph{per protein}, so
+        frequent proteins cannot dominate batches and re-imprint their
+        prior.
+  \item \textbf{Low-rank bilinear head} instead of an MLP-concat head at
+        identical capacity.
+\end{enumerate}
+
+\begin{table}[t]
+\centering
+\caption{Three-seed means $\pm$ s.d.\ on BRENDA-200, ordered by \mrr{}.
+The top row is a matched-capacity BCE control with the same encoders and
+split. Removing the margin loss collapses \mrr{} by $8\times$ and pooled
+AUC rebounds to $0.95$: the shortcut returns. Removing the balanced sampler
+costs $44\%$. The MLP head matches the bilinear head's mean but has
+$2.2\times$ wider seed spread.}
+\label{tab:ablation}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccccc}
+\toprule
+Config & \mrr{} & Hit@10 & Pooled AUC & Gini-res. & Top-10 \\
+       &        &        &            &           & overlap \\
+\midrule
+BCE control (MLP head)        & 0.015$\pm$0.002 & 0.000 & 0.948$\pm$0.030 & $-0.002$ & 0.587$\pm$0.137 \\
+$-$ margin loss               & 0.041$\pm$0.023 & 0.098 & 0.948$\pm$0.028 & $-0.043$ & 0.018 \\
+$-$ balanced sampler          & 0.183$\pm$0.060 & 0.422 & 0.630$\pm$0.038 & $-0.074$ & 0.037 \\
+$-$ bilinear head (MLP)       & 0.243$\pm$0.161 & 0.520 & 0.660$\pm$0.040 & $-0.182$ & 0.018 \\
+\textbf{\method\ v4}          & \textbf{0.326$\pm$0.072} & 0.755$\pm$0.095 & 0.634$\pm$0.010 & $-0.210$ & 0.035$\pm$0.030 \\
+$+$ residue attention pool    & \textbf{0.427$\pm$0.123} & 0.814$\pm$0.103 & 0.659$\pm$0.028 & $-0.216$ & 0.018 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:ablation} orders the ingredients by what they buy. The margin
+loss is the dominant contribution: without it \mrr{} falls from $0.326$ to
+$0.041$ and pooled AUC jumps back to $0.95$ (the model stops ranking and
+re-learns the protein marginal). The balanced sampler is a secondary positive
+($-44\%$ when removed). The bilinear head does not win on the mean
+($0.243$ for MLP versus $0.326$ for bilinear is partly seed luck) but cuts
+the seed-to-seed standard deviation from $0.161$ to $0.072$; we keep it for
+stability, not for a mean win. Hard-negative mining, which is part of the
+default rather than an ablation, lifts \mrr{} from $0.201$ (v3, random
+negatives) to $0.326$ ($+62\%$).
+
+The BCE control row deserves emphasis: with the same encoders, the same
+data and the same split, ordinary pair-wise BCE reproduces the published
+baselines' pathology in full: pooled AUC $0.948$, \mrr{} $0.015$, top-ten
+overlap with the molecule-blind prior $0.587$. The shortcut behaviour is
+produced by the training recipe, not by the encoders or the data. A BCE
+auxiliary loss added to the margin objective (weight 0.5) lifts pooled AUC
+by only $+0.03$ ($0.623 \to 0.655$), nowhere near $0.80$: the high pooled
+value is not a loss-function artefact that tuning could recover, it is the
+shortcut itself.
+
+Figure~\ref{fig:ablation} shows the same numbers as bars with seed error
+bars; Fig.~\ref{fig:jaccard} measures shortcut avoidance directly as the
+top-ten overlap of each model with the molecule-blind prior.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.75\linewidth]{fig_ablation.pdf}
+  \caption{Ablation, three seeds, \mrr{} (chance 0.029 dashed). The BCE
+  control (top bar) reproduces the published models' pathology inside our
+  own codebase: the behaviour comes from the recipe, not the data.}
+  \label{fig:ablation}
+\end{figure}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.75\linewidth]{fig_jaccard.pdf}
+  \caption{Shortcut avoidance, measured directly: overlap of each model's
+  ten favourite proteins with the molecule-blind prior's. The three
+  baselines with a Jaccard of $0.54$--$0.67$ share two thirds of their
+  favourites with a model that never sees the molecule.}
+  \label{fig:jaccard}
+\end{figure}
+
+\subsection{A residue-level attention pool: small gain, and the audit says why}
+\label{sec:residue}
+
+The default mean-pools the per-residue ESM2 tensor. We replace the mean pool
+with a learned-query attention pool
+($\alpha_i = \mathrm{softmax}(\mathbf{q}^\top \mathrm{LN}(\mathbf{e}_i)/\sqrt{d})$)
+over the per-residue embeddings, adding 3{,}840 parameters ($+0.6\%$). The
+three-seed result is \mrr{} $0.427 \pm 0.123$ (from $0.326 \pm 0.072$),
+Hit@10 $0.814$, per-molecule AUC $0.930$ (seed 42).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.8\linewidth]{fig_attention.pdf}
+  \caption{Attention percentile of functional residues within their own
+  protein (median over annotated residues; 0.5 = average). Catalytic
+  active-site residues sit at the 3rd percentile: the pool de-weights the
+  functional pocket instead of selecting it.}
+  \label{fig:attention}
+\end{figure}
+
+Two audits explain what the pool actually does. First, the weights are
+near-uniform: the median top-10\% mass is $0.118$ against a uniform
+expectation of $0.10$, and the entropy sits at the ceiling $\log L$. The
+pooled representation is therefore close to the mean of the
+\emph{normalised} residue vectors (which is provably different from the v4
+mean of the raw vectors, because per-residue LayerNorm rescales the
+high-norm residues that dominate the raw mean). Second, the small residual
+selection is reproducible across seeds (median Spearman $0.86$, random
+expectation $\approx 0$) but it does not find the pocket: active-site
+residues, annotated from UniProt, rank at the median 3rd attention
+percentile of their own protein, and attention weights separate annotated
+from unannotated residues with ROC-AUC $0.21$ (chance $0.5$; Fig.~\ref{fig:attention}).
+What the reproducible rank order tracks is hydrophobicity: the within-protein
+Spearman between attention and Kyte--Doolittle hydropathy is $+0.24$ with
+the same sign in $58/60$ proteins.
+
+The mechanism is therefore per-residue normalisation before pooling, not
+learned pocket selection. This is a finding about residue-level encoding
+worth stating plainly: raw mean-pooling lets a few high-norm residues
+dominate the protein vector, and removing that artefact is what buys the
+$+0.10$ \mrr{}. We report the attention pool because it is the module we
+trained; a parameter-free LayerNorm-then-mean pool is the cheap variant that
+should be tried first.
+
+\subsection{The diagnosis and the recipe transfer to seven datasets}
+\label{sec:transfer}
+
+Every dataset in this section is scored twice: with \method{} and with a
+matched BCE control (same encoders, same split, ordinary pair-wise BCE),
+because only a model trained on the same data can show what the standard
+recipe buys there. Beyond three enzyme-wide datasets curated from the BRENDA
+and SABIO-RK kinetics databases, each labelling enzyme--substrate pairs by a
+measured kinetic quantity (catalytic efficiency kcat/$K_M$, Michaelis
+constant $K_M$, turnover rate; 42--57k pairs, 3.8--9.5k proteins) we add
+ESP,
+an independent enzyme--substrate corpus \citep{kroll2023esp}, and three
+kinase affinity benchmarks from the Therapeutics Data Commons
+\citep{huang2021tdc}: BindingDB\textsubscript{$K_d$}, Davis
+\citep{davis2011kinase} and KIBA \citep{tang2014kiba}, binarised at the
+DeepDTA convention \citep{ozturk2018deepdta}. Each dataset is evaluated on
+the same instruments as BRENDA-200: a matched 200-protein pool, \mrr{} and
+Hit@K within each molecule, the molecule-blind prior as reference.
+
+\begin{table}[t]
+\centering
+\caption{Seven datasets, each scored with a matched BCE control and
+\method. The control passes pooled AUC everywhere (0.84--0.98) while
+ranking at near-chance \mrr{} (chance $\approx 0.029$): the BRENDA
+dissociation is reproduced on every corpus. \method{} ranks $7$--$25\times$
+better than the control on the catalytic enzyme datasets; on ESP it keeps
+pooled AUC 0.891 while ranking best of all. The two kinase affinity sets
+with no ranking signal in the prior (Davis, KIBA) bound the claim.
+BRENDA+SABIO and ESP rows use pool sizes of roughly half the
+train-protein count (Section~2.4; single seed); Davis/KIBA/BindingDB use the
+default pool of 50.}
+\label{tab:seven}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{llrrrrr}
+\toprule
+Dataset & Model & $n_{\text{pos}}$ & Pooled AUC & \mrr{} & $\rho_{\text{row}}$ vs.\ prior & Top-10 overlap \\
+\midrule
+\multicolumn{7}{l}{\emph{Enzyme--substrate}}\\
+kcat/$K_M$ (BRENDA+SABIO) & BCE control & 76 & 0.948 & 0.029 & $+0.09$ & 0.053 \\
+                          & \method     & 76 & 0.619 & \textbf{0.228} & $+0.01$ & 0.053 \\
+$K_M$ (BRENDA+SABIO)      & BCE control & 59 & 0.978 & 0.030 & $+0.20$ & 0.111 \\
+                          & \method     & 59 & 0.633 & \textbf{0.219} & $-0.04$ & 0.053 \\
+turnover (BRENDA+SABIO)   & BCE control & 35 & 0.966 & 0.014 & $+0.10$ & 0.000 \\
+                          & \method     & 35 & 0.603 & \textbf{0.344} & $-0.06$ & 0.111 \\
+ESP                       & BCE control & 50 & 0.897 & 0.098 & $+0.01$ & 0.053 \\
+                          & \method     & 50 & 0.891 & \textbf{0.387} & $-0.02$ & 0.000 \\
+\midrule
+\multicolumn{7}{l}{\emph{Kinase affinity (not enzyme--substrate)}}\\
+BindingDB\textsubscript{$K_d$} & BCE control & 25 & 0.844 & 0.042 & $+0.48$ & 0.176 \\
+                               & \method     & 25 & 0.692 & \textbf{0.320} & $+0.09$ & 0.053 \\
+Davis                        & BCE control & 94 & 0.878 & 0.044 & $+0.42$ & 0.176 \\
+                             & \method     & 94 & 0.682 & 0.038 & $+0.22$ & 0.000 \\
+KIBA                         & BCE control & 453 & 0.856 & 0.035 & $+0.35$ & 0.111 \\
+                             & \method     & 453 & 0.492 & 0.023 & $-0.15$ & 0.111 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Four observations follow from Table~\ref{tab:seven}. First, the shortcut
+precondition is universal: the molecule-blind prior's score distribution is
+as concentrated on every dataset as on BRENDA (Gini $\approx 0.995$), so the
+skewed per-protein label distribution that enables the shortcut is not a
+BRENDA artefact. Second, the BCE control exploits it everywhere: pooled AUC
+$0.84$--$0.98$ at near-chance \mrr{} ($0.014$--$0.098$), exactly the
+dissociation of Section~2.1, now on six corpora beyond BRENDA-200. Third,
+\method\ circumvents it on every catalytic enzyme dataset: \mrr{} $0.228$,
+$0.219$, $0.344$ against control values of $0.029$, $0.030$, $0.014$
+($7$--$25\times$), with the per-row correlation to the prior at or below
+zero. ESP, the one independent enzyme--substrate corpus, is the instructive
+exception: it carries genuine per-molecule signal (both models reach
+per-molecule AUC $\geq 0.85$), and once the hard-negative pool is scaled to
+its protein count \method{} ranks best of all seven datasets (\mrr{} $0.387$,
+$4\times$ the control) while keeping pooled AUC at $0.891$. Where real
+signal exists, no shortcut trade-off is needed.
+
+Fourth, two honest non-wins bound the claim. On the kinase affinity sets the
+molecule-blind prior carries no ranking signal at all (\mrr{} $0.016$--$0.021$,
+at chance), so there is nothing to circumvent. BindingDB\textsubscript{$K_d$}
+is the one affinity set where \method{} ranks well ($0.320$); Davis shows
+low \mrr{} ($0.038$) but a healthy per-molecule AUC of $0.686$, a metric
+artefact of promiscuous kinase inhibitors with many positive proteins per
+molecule; on KIBA, \method's training did not converge to a ranking
+solution (per-molecule AUC $0.457$), a tuning limitation on our side, not a
+refutation of the diagnosis.
+
+The BRENDA+SABIO rows also resolve a scaling question from our first
+transfer run. With the BRENDA-200-tuned hard-negative pool of 50, \mrr{} on
+these datasets was $0.134$, $0.023$ and $0.040$ (two to fourteen times
+below the BRENDA-200 headline) while the correlation with the prior stayed
+at zero. The drop looked like a loss of signal but was a coverage artefact:
+a pool of 50 covers a quarter of BRENDA-200's training proteins but less
+than 2\% of a 3.8--9.5k-protein training set, so hard-negative mining
+degrades to random sampling. Scaling the pool to roughly half of the train
+proteins (1{,}400, 3{,}400 and 2{,}000) lifts \mrr{} monotonically to the
+values in the table, with the anti-shortcut property unchanged. The same
+fix, a pool of 4{,}000, was applied to ESP.
+
+\subsection{A five-point recipe}
+\label{sec:recipe}
+
+The evidence above reduces to five recommendations.
+
+\begin{enumerate}[leftmargin=*,itemsep=2pt,topsep=2pt]
+  \item \textbf{Run the molecule-blind null before reporting pooled
+        metrics.} Score each pair by the protein's training positive rate.
+        If your model matches this baseline in pooled AUC and overlaps it
+        in the top-$K$ proteins (Jaccard $\geq 0.30$), pooled AUC certifies
+        the prior, not binding. The probe is one matrix multiply.
+  \item \textbf{Optimise within-molecule ranking, not pair-wise
+        classification.} A margin loss over negatives sampled inside each
+        molecule's candidate set is the single largest lever in our
+        ablation. Do not add BCE as an auxiliary: it recovers the pooled
+        number without fixing the ranking.
+  \item \textbf{Balance the sampler per protein.} Otherwise frequent
+        proteins re-imprint their label prior into every batch.
+  \item \textbf{Scale the hard-negative pool with the number of train
+        proteins.} A pool tuned on a 200-protein benchmark is meaningless
+        at 5{,}000 proteins. Half of the train-protein count worked
+        everywhere we tried it.
+  \item \textbf{Do not gate model selection on pooled AUC.} Report it for
+        comparability, but gate on three-seed \mrr{}. The metric you gate
+        on should not be the metric the shortcut inflates.
+\end{enumerate}
+
+%===============================================================================
+\section{Discussion}
+\label{sec:discussion}
+
+The central observation of this paper is methodological: on enzyme--substrate
+benchmarks, pooled AUC validates the wrong property. Four published models,
+one of them built on pretrained protein language models, all pass it by
+reproducing the per-protein label marginal, and a molecule-blind baseline
+passes it just as easily. The fix is not a better encoder or a bigger
+dataset; it is an evaluation change (rank inside each molecule) and a
+training change (optimise that ranking directly). \method{} is the concrete
+instance of the latter, and its ablation shows the mechanism: the margin
+loss is what keeps the model honest, the balanced sampler and hard-negative
+mining stabilise it, and the bilinear head buys seed-to-seed stability.
+
+The cost deserves to be stated plainly. On BRENDA-200, relative to the BCE
+control, \method{} trades pooled AUC down from $0.95$ to $0.63$ while \mrr{}
+goes from $0.015$ to $0.326$. We consider this the right trade: the high
+pooled value was never valid, and the ranking value is what the task asks
+for. ESP shows that the trade is not inherent to the recipe: there, real
+per-molecule signal exists, and \method{} keeps pooled AUC at $0.891$ while
+ranking best of all seven datasets.
+
+Three limitations bound the claims. First, the transfer numbers are
+single-seed; the BRENDA-200 headline is three-seed, the enzyme-wide peaks
+are not yet. Second, the decoy construction of the BRENDA corpus leaks
+pair-level statistics into the inputs (a linear probe on the frozen
+embeddings reaches pair-level AUC $\approx 0.86$ before any training;
+\method{} removes most of this signal, leaving $0.68$), so absolute pooled
+values on this corpus should be read with that in mind; the seven-dataset
+control comparison is the cleaner instrument. Third, the residue-level
+attention does not find catalytic pockets (it de-weights them), so any
+future pocket-selection scheme should use structural priors (AlphaFold
+structures plus a pocket detector) rather than learned attention.
+
+What we hope survives this paper is the probe, not the architecture. Any
+DTI model can be checked against the molecule-blind prior in minutes, and
+any dataset can be scored with \mrr{} instead of pooled AUC alone. The
+recipe of Section~2.5 is the cheapest way we found to pass that check: 627k
+trainable parameters, a few hours on one GPU per seed, and every ingredient
+is a standard technique from metric learning.
+
+%===============================================================================
+\section{Methods}
+\label{sec:methods}
+
+\subsection{Data and splits}
+\label{sec:data}
+
+BRENDA-200 is the enzyme--substrate corpus used throughout
+Sections~2.1--2.3: a $200\times200$ subset of the BRENDA+SABIO
+enzyme--substrate records (hydrolytic enzymes dominate; 9{,}632 pairs, of
+which 3{,}175 are documented substrates and 6{,}457 are decoys). Each
+positive pair is a molecule recorded as a substrate of the enzyme in BRENDA
+\citep{chang2021brenda} or SABIO-RK \citep{wittig2018sabiork}; the decoys
+are non-substrate pairs (value 0) whose molecules are structurally similar
+to the enzyme's true substrates (median Tanimoto similarity 0.48 to the
+closest one), injected by the project's decoy pipeline. The split is
+protein-stratified (seed 42, $70/15/15$) so that test proteins never appear
+in training; the test set holds 1404 pairs over 200 unique proteins and 200
+unique molecules, and all matrix metrics are computed on this pool. The
+split is implemented once in \texttt{baselines/adapters/common.py::
+BRENDADataConfig.get\_protein\_split} and reused by every model and every
+diagnostic.
+
+The three enzyme-wide datasets are produced by the project's pinned data
+pipeline (the \texttt{reactionDataFiltering} git submodule, fixed commit):
+a raw BRENDA+SABIO export (snapshot of 2026-04-29) is filtered to one
+kinetic parameter (catalytic efficiency kcat/$K_M$, Michaelis constant
+$K_M$, or turnover rate) and EC class; decoys are generated with a
+MolTransformer-based decoy generator in offline mode (seed 42); and the two
+are augmented into the with-decoys tables used here (\texttt{kcat\_km}:
+43k pairs / 3.8k proteins / 13.1k SMILES; \texttt{km}: 57k / 9.5k / 14.6k;
+\texttt{turnover}: 42k / 5.7k / 13.5k). Every pipeline stage writes a
+sidecar manifest with the SHA-256 of its inputs and outputs, its parameters
+and tool versions, so every table can be traced back to the raw export.
+ESP \citep{kroll2023esp}, obtained
+from its authors' release and re-split protein-stratified; and the kinase
+affinity sets Davis \citep{davis2011kinase}, KIBA \citep{tang2014kiba} and
+BindingDB\textsubscript{$K_d$} from the Therapeutics Data Commons
+\citep{huang2021tdc}, binarised at the DeepDTA convention
+\citep{ozturk2018deepdta} (Davis/BindingDB $\text{p}K_d \geq 7$, KIBA score
+$\geq 12.1$) and split cold-target (unseen test proteins). For each dataset
+a 200-protein evaluation pool is matched so that the pool proteins overlap
+the training set to a comparable degree across datasets (65--71\%).
+
+\subsection{Null baselines and metrics}
+\label{sec:metrics}
+
+The molecule-blind prior \nullprior{} scores each pair $(L, P)$ with the
+training positive rate of $P$; the random baseline scores uniformly. Gini is
+computed on the attractor shares of the score matrix (the per-protein
+fraction of molecules for which the protein is the top-scoring partner);
+0.5 means the shares are uniform, 1.0 that one protein wins every molecule.
+The top-ten overlap is the Jaccard index between a model's ten largest
+attractor shares and the prior's. The per-row Spearman $\rho$ correlates,
+within each molecule's row,
+the model's scores with the prior's; values at or below zero mean the model
+does not ride the protein marginal.
+
+\mrr{} is the mean reciprocal rank of the true target protein within each
+test molecule's row of the $200\times200$ matrix (chance $\approx 0.029$
+at 200 candidates); Hit@$K$ is the fraction of test molecules whose true
+target lands in the top-$K$. Per-molecule AUC is computed per row and
+averaged; the test-pair variant rests on $n=4$ on BRENDA-200, the matrix
+variant on $n=30$ (a column is positive iff it is a held-out test positive,
+all other columns are negative). Pooled AUC and AUPR are reported for
+comparability with prior work but are not used as success gates.
+
+\subsection{Model and training}
+\label{sec:model}
+
+Molecules are embedded with frozen ChemBERTa, a language model pretrained
+on molecular SMILES strings (384-d mean pool)
+\citep{chithrananda2020chemberta}, proteins with frozen ESM2-650M, a
+protein language model pretrained on 65M sequences (1280-d; mean pool in the
+default, learned-query attention pool in the residue-level
+variant) \citep{lin2023esm2}. Two-layer projectors map both to 256-d; the
+score is computed by a low-rank bilinear head with diagonal correction and
+bias (rank 128). Total trainable parameters: 627{,}201.
+
+Training uses AdamW ($\mathrm{lr} = 3\times10^{-4}$, cosine decay to
+$3\times10^{-5}$, weight decay $10^{-4}$, gradient clipping at 1.0), bf16,
+batch size 32 molecules, up to 50 epochs, early stopping on validation
+pooled AUC with patience 10 (minimum 20 epochs). The balanced sampler draws
+16 pairs per protein per epoch with a 1:1 positive:negative ratio. The
+hard-negative pool is 50 on BRENDA-200 and the affinity benchmarks, and
+scaled to $\approx 50\%$ of the training protein count on the enzyme-wide
+datasets (1{,}400 / 3{,}400 / 2{,}000 / 4{,}000 for kcat/$K_M$, $K_M$,
+turnover, ESP). The BCE control uses the same encoders and split with a
+binary cross-entropy loss, random batches and the MLP-concat head. The BCE
+auxiliary probe adds a BCE term of weight 0.5 to the margin objective.
+
+Seeds $\{42, 7, 1337\}$ are used for all BRENDA-200 configurations
+(Sections~2.1--2.3); the transfer runs of Section~2.4 are single-seed (seed
+42). Hardware: one NVIDIA A30 GPU per run, about 1.5\,h per seed for the
+default and 4\,h for the residue-level variant.
+
+\subsection{Attention audit}
+\label{sec:audit}
+
+Attention weights were inspected for three seeds and 60 sampled BRENDA
+proteins. Cross-seed agreement is the median Spearman correlation of the
+weight vectors between seed pairs (random expectation $\approx 0$).
+Functional residues were annotated from UniProt records (active sites,
+binding sites, signal peptides) \citep{uniprot2023}; the attention
+percentile of a residue is its rank within its own protein. Within-protein
+correlations with per-residue descriptors (Kyte--Doolittle hydropathy
+\citep{kytedoolittle1982}, Chou--Fasman propensities
+\citep{choufasman1978}, net charge, ESM2 residue norm) were computed per
+protein and aggregated by the sign-consistency across proteins.
+
+\subsection{Provenance}
+\label{sec:provenance}
+
+Every training run writes a \texttt{manifest.json} pinning the resolved
+configuration, git commit, library versions, input-data SHA-256 and the
+SHA-256 of the best checkpoint and score matrix. The three-seed means in
+Tables~\ref{tab:phase1}--\ref{tab:ablation} are aggregated by
+\texttt{scripts/aggregate\_multiseed.py} from these manifests. All code,
+configurations and the aggregated result tables are public at
+\url{https://github.com/christophmanitz/rankbind} (paper: \texttt{paper/}).
+The per-run manifests and score matrices that pin the reported numbers are
+archived with the HPC runs that produced them; \texttt{REPRODUCIBILITY.md}
+lists every artefact and the command that regenerates it.
+
+%===============================================================================
+\section*{Data availability}
+All source code, configurations and the scripts that regenerate every table
+and figure are available at \url{https://github.com/christophmanitz/rankbind};
+the aggregated result tables are committed alongside the code. The input
+data (the processed BRENDA-200 split with decoys, a few MB) and the
+per-run artefacts (manifests, score matrices, checkpoints) are not
+redistributed in the repository; \texttt{REPRODUCIBILITY.md} lists each
+artefact, its SHA-256 and the command that regenerates it, and the
+artefacts are available from the authors on request. The enzyme-wide
+datasets are derived from the public BRENDA~\citep{chang2021brenda} and
+SABIO-RK~\citep{wittig2018sabiork} resources (derivation pipeline pinned as
+a git submodule), and the external benchmarks are obtained from their
+original sources via the Therapeutics Data Commons~\citep{huang2021tdc}.
+
+\section*{Code availability}
+Training, evaluation and null-probe code lives in the \texttt{v5\_rankbind/}
+and \texttt{evaluation/} directories of the repository; the reproduction
+commands are listed in \texttt{REPRODUCIBILITY.md}.
+
+%===============================================================================
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
