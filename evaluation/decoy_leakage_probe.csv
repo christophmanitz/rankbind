@@ -1,0 +1,4 @@
+variant,train_auc,test_auc,matrix_mrr,hit_at_5,hit_at_10,n_matched,rho_colscore_pri,jaccard_top10_vs_prior,rho_protscore_pri
+full,0.9743,0.8329,0.0291,0.0,0.1176,34.0,0.103,0.053,
+molecule_only,0.9334,0.8874,,,,,,,
+protein_only,0.8011,0.6035,,,,,,,0.961
