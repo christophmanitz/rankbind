@@ -1,0 +1,179 @@
+# revision_v0 — Freeze Record (skill item A0)
+
+- Git commit at freeze: `969c67bc64a056ccfae0b938f7df28423fceff24`
+- Date: 2026-08-22
+- Note: this file pins the state AFTER Protocol-A split fix (6d685af) and A3 selection change (969c67b);
+  the pre-fix state is `4ff68dc` (GitHub public snapshot). All multi-seed artifacts produced before
+  6d685af are INVALID as test metrics (eval-split bug, see ~/rankbind_revision/PLAN.md C2); they are
+  hashed here only to pin exactly which bytes were audited.
+
+## Environment
+
+| Component | Version |
+|---|---|
+| Python | 3.10.4 |
+| torch | 2.8.0+cu128 |
+| numpy | 1.26.4 |
+| pandas | 2.3.3 |
+| scikit-learn | 1.7.2 |
+| scipy | 1.15.3 |
+| transformers | 5.7.0 |
+| CUDA toolkit (module) | 12.4.0 |
+| GCC (module) | 11.3.0 |
+| GPU | NVIDIA A30 (paula partition, --gres=gpu:1, 24 GB HBM) |
+
+## Key artifacts (SHA256)
+
+| File | SHA256 |
+|---|---|
+| results/original_drugban/best_model.pt | 7cdd973e8a7fc1e9883ed2d78cba1818a05b1573a65e171ea4df745906ca9745 |
+| results/original_gems/best_model.pt | f909c4055d609f38a5e8baabe855e3dbfc7c0ace0e1f05d73f82c97d1486286d |
+| results/original_graphdta/best_model.pt | 39fd364ac344d2cad7c3ee9b43fa05edc495b6139d6f55344f84764248695eb4 |
+| results/original_moltrans/best_model.pt | a3009869a1e8033bb65c1ead2b9028fbe01a088867acd22888906faeb16fe560 |
+| results/original_drugban/score_matrix_DrugBAN.npy | 06444ae09abdde7882418e386e1ea7d751e36166c02de2bb48ebfe94cde4b56d |
+| results/original_gems/score_matrix_gems.npy | fbd6cf8602d98fca219b70b85cca215aa785bdb0766c3236b6ad96f23dc658e3 |
+| results/original_graphdta/score_matrix_graphdta.npy | 9fe819fa30a34985c049f8300f20a20e12d2559ac6a1182bf8e532756318896c |
+| results/original_moltrans/score_matrix_moltrans.npy | ec8a008c3f8e6591ea16493587746a365ab6f0de0adf030dc55c03de3360fcf3 |
+| results/v5_rankbind/20260423-112928_012a2695c2_default_v4/best_model.pt | 43838882f856107c567b0e1434a4d7a6540c6cd71b4d3b1431a79f7d2614aeaa |
+| results/v5_rankbind/20260423-112928_012a2695c2_default_v4/manifest.json | b3b904ca9ee6896b2addbcfa7db155bdb64d48a85932c99b68ab5791a35fa308 |
+| results/v5_rankbind/20260423-112928_012a2695c2_default_v4/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260423-112928_012a2695c2_default_v4/score_matrix_rankbind.npy | edfb04d8784ceec635e8853b879e455418916ca0281fd76b2b71dbf1feb2f18c |
+| results/v5_rankbind/20260423-112928_012a2695c2_default_v4/test_matrix_ranking.json | 358a584cd76c1ffb2733b71e464024727b17a03d7a3c6dedfce0a41a62178374 |
+| results/v5_rankbind/20260423-112928_012a2695c2_default_v4/train_log.jsonl | e2f931f8eb1c89f81d0ffa6789e6154b6eba8e45bf821f7efdafe37094b4ed97 |
+| results/v5_rankbind/20260423-133643_9ee7fdbfbc_default_v4_s7/best_model.pt | e6482e2587d025be45e851ede02ef5644f11d57ee63d93d18fded22c25d13be4 |
+| results/v5_rankbind/20260423-133643_9ee7fdbfbc_default_v4_s7/manifest.json | 977492d0a54b7947f2a93b3e6bcd42d0129b16ce3020678ec98c60131a1a1a0e |
+| results/v5_rankbind/20260423-133643_9ee7fdbfbc_default_v4_s7/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260423-133643_9ee7fdbfbc_default_v4_s7/score_matrix_rankbind.npy | f2727d2db53d0dd59413893847bd85c073d6a03868e22cbfc90b8f0d0e2134d0 |
+| results/v5_rankbind/20260423-133643_9ee7fdbfbc_default_v4_s7/test_matrix_ranking.json | 400b6c649eeb1b941b5746b2b493274a528c6ca00408cb9553bb31caf67d43fa |
+| results/v5_rankbind/20260423-133643_9ee7fdbfbc_default_v4_s7/train_log.jsonl | 2be4f4849c3207aa323c30ad45abaf9e7cfbe4ee29a64952794504ae934c906f |
+| results/v5_rankbind/20260423-134003_9ee7fdbfbc_default_v4_s1337/best_model.pt | 934c480b26a5fc3459798889ab217533216da199b25cd25132bacef97cb8ee44 |
+| results/v5_rankbind/20260423-134003_9ee7fdbfbc_default_v4_s1337/manifest.json | 318a3ba7093ef233c6c02c57db87311d957376e93eba3b83cea74bd842619d8d |
+| results/v5_rankbind/20260423-134003_9ee7fdbfbc_default_v4_s1337/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260423-134003_9ee7fdbfbc_default_v4_s1337/score_matrix_rankbind.npy | ad5b03cb391f15efaa146262b80265c146f49107fe3c27c83f1ac9870f7fdf56 |
+| results/v5_rankbind/20260423-134003_9ee7fdbfbc_default_v4_s1337/test_matrix_ranking.json | 69954bf0e60f5ef3143fa0f264f29a81eebd85002bda580bc5c654ff0845067a |
+| results/v5_rankbind/20260423-134003_9ee7fdbfbc_default_v4_s1337/train_log.jsonl | 132e20d5d1f5b06b55b948c947bed90f69e02cc5edc1861830f5de624d51dd8d |
+| results/v5_rankbind/20260423-124412_012a2695c2_abl_no_sampler_v4/best_model.pt | e736bc48e1e8d8bce31170608b00c0e50088bda345272cc4b78f853f01febb53 |
+| results/v5_rankbind/20260423-124412_012a2695c2_abl_no_sampler_v4/manifest.json | 44c702c53d281c1ed3abea77484f423239122c1c8b76f66fe387317b5b7dd823 |
+| results/v5_rankbind/20260423-124412_012a2695c2_abl_no_sampler_v4/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260423-124412_012a2695c2_abl_no_sampler_v4/score_matrix_rankbind.npy | 768c965cc49a273b18601ebaf35264111556a7c43e2aa6690ec9cbda0b2e179e |
+| results/v5_rankbind/20260423-124412_012a2695c2_abl_no_sampler_v4/test_matrix_ranking.json | f667bc3afb9fe879b7823a50e885ba5e03dddfb3feb1adc769127ba028f8faad |
+| results/v5_rankbind/20260423-124412_012a2695c2_abl_no_sampler_v4/train_log.jsonl | 24f54c59f1d76a7b89d91b2b4020d994a52a668eed2ef9303e557c4bef14f0fb |
+| results/v5_rankbind/20260423-134229_9ee7fdbfbc_abl_no_sampler_v4_s7/best_model.pt | 18bad1d103c26c2a7f51d477242aefe359ea6d703d738fd6a25a3094e2b4fd58 |
+| results/v5_rankbind/20260423-134229_9ee7fdbfbc_abl_no_sampler_v4_s7/manifest.json | a808806c35548bc0bc39ebd427f0709529c869ba7795187d610aa6be0809f1c5 |
+| results/v5_rankbind/20260423-134229_9ee7fdbfbc_abl_no_sampler_v4_s7/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260423-134229_9ee7fdbfbc_abl_no_sampler_v4_s7/score_matrix_rankbind.npy | 1aa5a0dc8606674b8437e654fd831613edefcd66b8319b61c4b7adb1cdbf8ffb |
+| results/v5_rankbind/20260423-134229_9ee7fdbfbc_abl_no_sampler_v4_s7/test_matrix_ranking.json | 92eba6efac7eb38e202e25384484b9013e57d252b41f8098dd3275ff143b150f |
+| results/v5_rankbind/20260423-134229_9ee7fdbfbc_abl_no_sampler_v4_s7/train_log.jsonl | d44e0d57a05cc40cf8a380038d6e6e522eac286d2019a6cb5477f6410768541c |
+| results/v5_rankbind/20260423-134342_9ee7fdbfbc_abl_no_sampler_v4_s1337/best_model.pt | 4db6b701d0ac4ff0375fb43913148d71ec1088af87fc264ac194ca7231a3b538 |
+| results/v5_rankbind/20260423-134342_9ee7fdbfbc_abl_no_sampler_v4_s1337/manifest.json | b2ee014ffbd45f1200209a4fc282c41fecff42064f5a305a4e556721232b8601 |
+| results/v5_rankbind/20260423-134342_9ee7fdbfbc_abl_no_sampler_v4_s1337/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260423-134342_9ee7fdbfbc_abl_no_sampler_v4_s1337/score_matrix_rankbind.npy | 30bc4b0a214b33e6a8eebf5ef9bed783374a9da7c54161902e8d1b67fbdc3eea |
+| results/v5_rankbind/20260423-134342_9ee7fdbfbc_abl_no_sampler_v4_s1337/test_matrix_ranking.json | af6dc81e6c1ec729ab54d8dc495c3263822acba37dcf3833489a025a2e3c631b |
+| results/v5_rankbind/20260423-134342_9ee7fdbfbc_abl_no_sampler_v4_s1337/train_log.jsonl | bef9cabcc98eb1543e0f8048049d21e9ce0d4f7cd58551dbdd4cd59bfa4cbfac |
+| results/v5_rankbind/20260423-134650_9ee7fdbfbc_abl_no_margin_v4_s7/best_model.pt | b4574ac6728cf44a9b740f2b7ef1e3fa1ad8316e3bff3d1571f5e873f4713cf9 |
+| results/v5_rankbind/20260423-134650_9ee7fdbfbc_abl_no_margin_v4_s7/manifest.json | de3cd7e1ccac0d7d4988c5aa181e6d3970eaad5f556874b4939fb22a112751d9 |
+| results/v5_rankbind/20260423-134650_9ee7fdbfbc_abl_no_margin_v4_s7/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260423-134650_9ee7fdbfbc_abl_no_margin_v4_s7/score_matrix_rankbind.npy | 16a50c756942cf689d06c2f2caf4c3361339ec7f075f4f95ed46ee060fdc7de7 |
+| results/v5_rankbind/20260423-134650_9ee7fdbfbc_abl_no_margin_v4_s7/test_matrix_ranking.json | fc8e3fff3d959954af888d807eaac7ecd69788b42d7f1cec7f23b4831799e9ef |
+| results/v5_rankbind/20260423-134650_9ee7fdbfbc_abl_no_margin_v4_s7/train_log.jsonl | 73636d05567f56a93abc738a149034b9146e705c4841e98f676963df15b4ad22 |
+| results/v5_rankbind/20260423-135117_9ee7fdbfbc_abl_no_margin_v4_s1337/best_model.pt | 271279efee21b4d84fe71ff876ff185d7c7512ce0585bf197c8aef147fdcfd72 |
+| results/v5_rankbind/20260423-135117_9ee7fdbfbc_abl_no_margin_v4_s1337/manifest.json | d916bf604c7f513e85026b0b25288d55cfa9e5f930a128bae8fb913739e77d1f |
+| results/v5_rankbind/20260423-135117_9ee7fdbfbc_abl_no_margin_v4_s1337/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260423-135117_9ee7fdbfbc_abl_no_margin_v4_s1337/score_matrix_rankbind.npy | 5be3740891a2a5891d6512611d375bbc9987b8114123c2c0dadc04500c7c7804 |
+| results/v5_rankbind/20260423-135117_9ee7fdbfbc_abl_no_margin_v4_s1337/test_matrix_ranking.json | d72ddadeb9b04771d4db53227023ed7219cd9660895dcf6391895c9ed89786c1 |
+| results/v5_rankbind/20260423-135117_9ee7fdbfbc_abl_no_margin_v4_s1337/train_log.jsonl | 0f4761cdfc5bb5add8b5bd29e6cdec19bfe4d05aacec154b1282c4231fb3c86b |
+| results/v5_rankbind/20260423-124503_012a2695c2_abl_no_bilinear_v4/best_model.pt | 84c09724dc236110e59aeef1b4f9d59c19cb74b62b696785355b15b962564716 |
+| results/v5_rankbind/20260423-124503_012a2695c2_abl_no_bilinear_v4/manifest.json | d15541de3565f9a07e129257ad931a60569f680449d1b24051a603debbea38e1 |
+| results/v5_rankbind/20260423-124503_012a2695c2_abl_no_bilinear_v4/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260423-124503_012a2695c2_abl_no_bilinear_v4/score_matrix_rankbind.npy | dd9659baedda981fb63f7f2746d67b5fb000fc5b24bf65b509ffb4ffbe46bd5c |
+| results/v5_rankbind/20260423-124503_012a2695c2_abl_no_bilinear_v4/test_matrix_ranking.json | 9bb651c2e594764e47072ccd5b9ceca18e4745fe124684119255d84b5477326a |
+| results/v5_rankbind/20260423-124503_012a2695c2_abl_no_bilinear_v4/train_log.jsonl | c30d892485bbca77f106128bc12772ad28e8bb77044b23043b05028c2acc5128 |
+| results/v5_rankbind/20260423-135435_9ee7fdbfbc_abl_no_bilinear_v4_s7/best_model.pt | b9a34c9f8d98c52a1ec88139d95272a72448e277e47cd6c669a07c694979e656 |
+| results/v5_rankbind/20260423-135435_9ee7fdbfbc_abl_no_bilinear_v4_s7/manifest.json | e68261d69ba657af5563c570a4c1bb0498ae8d261a595e8b57a6a72b5486d79e |
+| results/v5_rankbind/20260423-135435_9ee7fdbfbc_abl_no_bilinear_v4_s7/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260423-135435_9ee7fdbfbc_abl_no_bilinear_v4_s7/score_matrix_rankbind.npy | 5e8a17a31ef796405370a8f8b3c20a74626241aca2071145b8055889b588c077 |
+| results/v5_rankbind/20260423-135435_9ee7fdbfbc_abl_no_bilinear_v4_s7/test_matrix_ranking.json | ab097e57d29fe41350ef5172e51efcf04f2ea9a068b17020d6815731bc84306a |
+| results/v5_rankbind/20260423-135435_9ee7fdbfbc_abl_no_bilinear_v4_s7/train_log.jsonl | 6fe023f64f5098ab5f5244f731d18d8815d58b9c52f98e94169d7ae17232c908 |
+| results/v5_rankbind/20260423-135527_9ee7fdbfbc_abl_no_bilinear_v4_s1337/best_model.pt | 71c50b5808989c299b32f27ff6c17faed30f86f37e100293ecd57a2ab4fcdf4f |
+| results/v5_rankbind/20260423-135527_9ee7fdbfbc_abl_no_bilinear_v4_s1337/manifest.json | f71ba56b7eace9726b9b3e6e7e53128d95c62e1b9ee1b995fdb90b97be4f6ca7 |
+| results/v5_rankbind/20260423-135527_9ee7fdbfbc_abl_no_bilinear_v4_s1337/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260423-135527_9ee7fdbfbc_abl_no_bilinear_v4_s1337/score_matrix_rankbind.npy | fffd056259e61927e37b2013550544d7cc864e52f9f3d85ba200c358d9395a81 |
+| results/v5_rankbind/20260423-135527_9ee7fdbfbc_abl_no_bilinear_v4_s1337/test_matrix_ranking.json | f0793ac4f9f61e12bc3a8a312155b896b6ab7ee164a5736743cb72d457ba8204 |
+| results/v5_rankbind/20260423-135527_9ee7fdbfbc_abl_no_bilinear_v4_s1337/train_log.jsonl | 9aa4db8d23c2a2ad6e12b340a3ab03e6132fbdcc64b3e3fc96d40882b153ea9f |
+| results/v5_rankbind/20260423-135706_9ee7fdbfbc_abl_bce_only_v4_s7/best_model.pt | 1766506e5b39a082d5d2a07fbe78a8e8b693b4c6e52f96938980774a6e5c44d0 |
+| results/v5_rankbind/20260423-135706_9ee7fdbfbc_abl_bce_only_v4_s7/manifest.json | 971bbbe77a161e282ba7e488bc2494634b1010672a75700c89b2680af4cd6363 |
+| results/v5_rankbind/20260423-135706_9ee7fdbfbc_abl_bce_only_v4_s7/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260423-135706_9ee7fdbfbc_abl_bce_only_v4_s7/score_matrix_rankbind.npy | 738f550053706cbc70fd9de9710b913f35111e0ed51b1437a9f967e98b54171b |
+| results/v5_rankbind/20260423-135706_9ee7fdbfbc_abl_bce_only_v4_s7/test_matrix_ranking.json | c5a3a66917a5da0bc16d6d57f3fb953c1232d2dc4e2b6a3a236d1965b522305f |
+| results/v5_rankbind/20260423-135706_9ee7fdbfbc_abl_bce_only_v4_s7/train_log.jsonl | 1bf3374eeab4d027db796fe8bae04eb6b00a2ad825fb8b0d0fbfdde02845477f |
+| results/v5_rankbind/20260423-135735_9ee7fdbfbc_abl_bce_only_v4_s1337/best_model.pt | c819b08e8006563578608cadf6699a033f09928bf233cda7164a64f4bcc0a434 |
+| results/v5_rankbind/20260423-135735_9ee7fdbfbc_abl_bce_only_v4_s1337/manifest.json | f96aa8dd51e16c7f2eb9864305a907dd4d6da19b0d64036e8c60aa22508f7221 |
+| results/v5_rankbind/20260423-135735_9ee7fdbfbc_abl_bce_only_v4_s1337/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260423-135735_9ee7fdbfbc_abl_bce_only_v4_s1337/score_matrix_rankbind.npy | f9289c8ee8bfd714f91780f62f7a2c4a2e8aea963547dab59e6c75f50f381e73 |
+| results/v5_rankbind/20260423-135735_9ee7fdbfbc_abl_bce_only_v4_s1337/test_matrix_ranking.json | 8d46f94121b899ea6a9e7219fc9a02698cd3a0cb936a224bd46a00be0ab3944b |
+| results/v5_rankbind/20260423-135735_9ee7fdbfbc_abl_bce_only_v4_s1337/train_log.jsonl | e0d2e5d5875056972528cf8e5a1e4b4d66e7d8946a0120d659b526496d4ffcda |
+| results/v5_rankbind/20260427-121113_1746525d51_abl_attn_pool_v5b_s42/best_model.pt | a684c4f48dca5814ab984cff08d6c280b8556aefd5c7b89f4a3e1fda9747cddf |
+| results/v5_rankbind/20260427-121113_1746525d51_abl_attn_pool_v5b_s42/manifest.json | 27e2dee16608c6bca3d80cf76f2638eaf96dd1d2bf51061a9b9b84366d92eb29 |
+| results/v5_rankbind/20260427-121113_1746525d51_abl_attn_pool_v5b_s42/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260427-121113_1746525d51_abl_attn_pool_v5b_s42/score_matrix_rankbind.npy | b61035bdcaa3dabc72f37cf0077b2afa34d76aa5d05f9bca7e26ee00d61873b1 |
+| results/v5_rankbind/20260427-121113_1746525d51_abl_attn_pool_v5b_s42/test_matrix_ranking.json | a602eef535a39ff8599754526621720ea1445215155827fe47f365c54a45b041 |
+| results/v5_rankbind/20260427-121113_1746525d51_abl_attn_pool_v5b_s42/train_log.jsonl | 507d72f413df3ed6606114662eebffaf2bc70935b3519841fee4d9de59377610 |
+| results/v5_rankbind/20260423-151536_9ee7fdbfbc_probe_bce_aux_v4_bceaux05/best_model.pt | ad6ef2acea07d119157a7a29e5a58b6062ca8bb67cde6d2f2f7a9709a5fb4b9f |
+| results/v5_rankbind/20260423-151536_9ee7fdbfbc_probe_bce_aux_v4_bceaux05/manifest.json | ba55593166886fc61e9f0c448095cc8441f995eee0e3c99ad71ecfb820f57c88 |
+| results/v5_rankbind/20260423-151536_9ee7fdbfbc_probe_bce_aux_v4_bceaux05/score_matrix_axes.json | f7ecf5e341dccf59de8dbab28a02233d8f8bb1b8836759325f0846b1dac9ecfb |
+| results/v5_rankbind/20260423-151536_9ee7fdbfbc_probe_bce_aux_v4_bceaux05/score_matrix_rankbind.npy | 5b8825f8408e63ad64a91be09ece27b95f5401eced81bb144b88f9bc4f80e050 |
+| results/v5_rankbind/20260423-151536_9ee7fdbfbc_probe_bce_aux_v4_bceaux05/test_matrix_ranking.json | 551ca4bb6b127d44f4ca4244352e417fd5ca457c574fe4e393410bf0189b4a26 |
+| results/v5_rankbind/20260423-151536_9ee7fdbfbc_probe_bce_aux_v4_bceaux05/train_log.jsonl | 7611ea96d86346f88b1d9f0b199a811d9f4f4a2908228c21e64cf300f9537fdd |
+| evaluation/attractor_results/attn_annotation_aa.csv | 4857a8ff79c4f765d6e5633161d940767d2d86c2cc581c7bbf7ea2d1b3d78218 |
+| evaluation/attractor_results/attn_annotation_continuous.csv | 3cd8eb3d03598332adac0e86621612faba8c96cb4c6a8ec55a7b00d670698bcd |
+| evaluation/attractor_results/attn_annotation_features.csv | 672781ace38e132a72997316b0f2b8c621abc2751d3981a290ddc64a33e8faad |
+| evaluation/attractor_results/attn_annotation_residues.csv | 96e1c5ee4cf1acb1271864598de836fbbe4e852d8e6dc8cea80341b58c60349b |
+| evaluation/attractor_results/attn_pocket_overlap.csv | 3b5978495f6f1a3486335a8df726a7824bb1efdf632ceb366fe8c11a5fe019fd |
+| evaluation/attractor_results/attn_pocket_overlap_all.csv | cb0594af00cdd2df64d8b2a089031468289c7dee47757316bef7ded4315fce14 |
+| evaluation/attractor_results/attn_trough_pocket_proximity.csv | 3d538041c88288029e4c9d356c948d911d9a4e8f5331ee6a8ccff704eb95ac13 |
+| evaluation/attractor_results/attn_trough_pocket_proximity_summary.csv | 314eaf571c2df17b1d41383ac8041e35f7c40087f92e2c7fcc6fb08e9c2f9cad |
+| evaluation/attractor_results/attn_weights_concentration.csv | f554918adfc7bcb54630bbbf08d7691771de82672e851f3dd24ece36edf9ae4a |
+| evaluation/attractor_results/attn_weights_cross_seed.csv | 20cd9d751b423348bf6f8bcc6b75bc47bf0af86517da43546b72f3879b52c830 |
+| evaluation/attractor_results/bce_control_null_summary.csv | 380bb6a238635cb467ca964e13ff7f14e48e63388d739d58c4b26b7e0d324819 |
+| evaluation/attractor_results/benchmark_null_summary.csv | 70380f3714638aba06951d77c54a42970946a147010ac582e654fc2ec8ee2923 |
+| evaluation/attractor_results/brenda_sabio_rankbind_null_summary.csv | 9076bafc3035aa0285d59a4cf3e9592b1e5cd6a30588334366793d39c5d2c8ff |
+| evaluation/attractor_results/cross_model_overlap.csv | ec97aefe0068f453972863f5d9d74c6493254e12a74b1e433c7cd3a9e1ddf434 |
+| evaluation/attractor_results/embedding_evolution.csv | f3abc48085aef17188ff3868866bbaaf64c50447cc8b766211ed2b64e3d64665 |
+| evaluation/attractor_results/gini_comparison.csv | 16aa26c82cdc12501db68ffbc5c8028df994630d5c86b6c3a446dcb48c62798f |
+| evaluation/attractor_results/gini_residual.csv | e05a93c3659219177fc98f818455a0b0ec2c285323583d97cbefd960dcc5b548 |
+| evaluation/attractor_results/graphdta_recipe_null_a_brenda.csv | 2f60ca6a77fa903c3b89938f9afd4ed5718782cbabeb098cea5daa89ac9fa7e5 |
+| evaluation/attractor_results/graphdta_recipe_null_a_brenda_s1337.csv | 7db486ccaf3cc699fdd399bf41bf11ce91e9e1d620c6fb884d40d9f9ea6431c8 |
+| evaluation/attractor_results/graphdta_recipe_null_a_brenda_s7.csv | bb37d27b89246a21f9f4032eac0501bb41528a2b468fccd7df7d4807fc25aa73 |
+| evaluation/attractor_results/graphdta_recipe_null_a_turnover.csv | 48f7c4e31e8db3969895c0631a407cf7a1e41a20bb2f6effb3b2c7437c6bf049 |
+| evaluation/attractor_results/graphdta_recipe_null_b_brenda.csv | 6834a55587474b114df58a81cbe163a5020caf4944211be9748838e235771bc0 |
+| evaluation/attractor_results/graphdta_recipe_null_b_brenda_s1337.csv | 4e6994063dd4ecdf1fa5455d6e14ae56fd9a6f8cfbd1fe560fef547ada00e9b9 |
+| evaluation/attractor_results/graphdta_recipe_null_b_brenda_s7.csv | 9d2c7116d5d37d6d395aea0a41a7e5736dcd27e2404b8bb2654e29d027e4b6dd |
+| evaluation/attractor_results/graphdta_recipe_null_b_turnover.csv | 4ee2f838f56fec9e59d56fcfeddd9e15328edd4b004f114b6383be78492d6e97 |
+| evaluation/attractor_results/graphdta_recipe_null_c_brenda.csv | 1214b649c2042506e57a5567f6dff818e4a3285569a3c4dd8006a1f27845d4c6 |
+| evaluation/attractor_results/graphdta_recipe_null_c_brenda_s1337.csv | 9b359b37d6a649669b5958412485a6b133570a7725f7bb994950bf944d4bb22b |
+| evaluation/attractor_results/graphdta_recipe_null_c_brenda_s7.csv | d1f45deb5e4aa8ba55cb73c2f2a7698d5666c16fa71e222594471c748f0fbf9d |
+| evaluation/attractor_results/graphdta_recipe_null_c_turnover.csv | a5feac41d3e83f3aa9520a871faa20300fde907da9165c991dfed672d4ab546a |
+| evaluation/attractor_results/graphdta_recipe_null_orig_brenda.csv | d6f97ab110d3ae8027af26462555424a0780c1a0bd107bb6e3ae4b78773ff3f2 |
+| evaluation/attractor_results/graphdta_recipe_null_orig_brenda_s1337.csv | 93e461ab1b75e880b773cdf8237ae0bea43768d2749b96eb909455dbdda7f5ef |
+| evaluation/attractor_results/graphdta_recipe_null_orig_brenda_s7.csv | 7d09e22124940fb86c3b69da685efd3e559b628f0bbae377b688094eee9be0a8 |
+| evaluation/attractor_results/graphdta_recipe_null_orig_turnover.csv | 27e45b1586244f95bfe788b60adc8dd8a51fa52e070e40da21773c950e16e7c8 |
+| evaluation/attractor_results/matrix_per_ligand_auc.csv | 554cc6384a69585b51edad4c762a0940ba731e48cfc0b000a4a28362c8d4c5a3 |
+| evaluation/attractor_results/matrix_per_ligand_auc_all.csv | b4d4d0dbc522a7b366933280c659e0fae4bb8defab16d6af24e05c847dfe9f18 |
+| evaluation/attractor_results/matrix_per_ligand_auc_baselines.csv | fefa85d3fe08ccd7eff283ddbb1bcef4ae324ace5cf9db29e15d6c0131742213 |
+| evaluation/attractor_results/null_prior_probe_brenda_sabio.csv | 5f1dcd8ec00ea19eccecd0124b9e632ff4994fdf20df99e3f784ee31b3998676 |
+| evaluation/attractor_results/null_prior_probe_bs_v2_peak.csv | 4ef3772dcb18d4dd099f27339cc7ec5cdce5e97eb19eb925351bd63cebdcd889 |
+| evaluation/attractor_results/pair_classification_compare.csv | ed81a2dcb841e1d0643fad618cf033fb8e354171b950e3c3bacf823d68420468 |
+| evaluation/attractor_results/phase2_rankbind_multiseed.csv | 98ce13b660371641940ae844337278ead956f0abb83b3427c37651f81bca39a7 |
+| evaluation/attractor_results/phase2_rankbind_summary.csv | fcb675c47733116955ef3285ffebd29109585e26ee0426ae6438b9ee0587bf04 |
+| evaluation/attractor_results/shortcut_contrast_table.csv | 2511b18c432d563928285389ee4336c8b3fed4a1b9649311cbda15231d780992 |
+| evaluation/attractor_results/spearman_attractor.csv | c897a0fd34c2e0778c2494f6168d9bf2c7c1df4729a1373dd9feb58877cda168 |
+| evaluation/attractor_results/test_preds_drugban.csv | fdd94e7ddb899ac1105c74a699848eb37f9d3a08d9704947c03b8f31a7ad6ccf |
+| evaluation/attractor_results/test_preds_gems.csv | bde185edca6d89a1544bdf1c917286ad27cd50c4479f65c180752dc69b7ea1db |
+| evaluation/attractor_results/test_preds_graphdta.csv | ec3e07277f68b622f0f04b81c5ce8333e976005b291a1b1abf9196c16ddb451f |
+| evaluation/attractor_results/test_preds_moltrans.csv | 47ba12ee73dfc03468fb271bfbbbafd459f43d0ebd0caaa5c1604e1cc32b0dfa |
+| evaluation/attractor_results/test_summary_all.csv | 38919ee48b977559aed3ca7f5fe6b52a61a7b27e24f734c0b9adc29cb5cd01c5 |
+| evaluation/attractor_results/v4_failure_diagnosis.csv | a9413b3d219c1e6e57551196be191e3051d2d87e5a6fc4992e42e2ccb5450e5d |
+| evaluation/attractor_results/v4_failure_diagnosis_classes.csv | f6157edb0f43a389e500ab65efd502a13cb8792378caadaf312ab7b3eb7c7f6f |
+| evaluation/attractor_results/v6_deltafield_null_summary.csv | 731c56ea9308862791a1f97e1e4d5dc68896ed7f8a443b678790445bf688da38 |
+| evaluation/attractor_results/v6_deltafield_pocket_roc.csv | f6f3bb2b4f96b87373403d1b030ed2cac14bb4401ca6558b3c565a0d46fb5bc1 |
+| evaluation/attractor_results/v6_deltafield_pocket_roc_summary.csv | 3b0c62ed10feb2011b6640bcbc0c2a1f2a9667dbf41c1dd727578f5fadea8d24 |
