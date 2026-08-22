@@ -61,8 +61,8 @@ pooled AUC between 0.63 and 0.95 while ranking the true target of each
 molecule at or near chance, and that a molecule-blind baseline, which scores
 every protein by its training positive rate, produces the same scores, the
 same concentration (Gini $\approx 0.995$) and up to two thirds of the same
-top proteins. Pooled AUC in this regime certifies protein popularity, not
-binding. We introduce \method, a 627k-parameter model that optimises
+top proteins. Pooled AUC in this regime certifies memorisable
+dataset-level regularities, not binding. We introduce \method, a 627k-parameter model that optimises
 within-molecule ranking directly, with four ingredients: a within-ligand
 margin loss, online hard-negative mining, protein-balanced sampling and a
 low-rank bilinear head. On a protein-stratified split \method\ lifts \mrr{}
@@ -87,10 +87,12 @@ MolTrans~\citep{huang2021moltrans}, GraphDTA~\citep{nguyen2021graphdta},
 GEMS~\citep{wang2023gems}) report pooled discrimination values that make
 the benchmark look solved. These numbers are computed over all pairs at once:
 global AUC asks whether, across the whole test set, bound pairs score higher
-than unbound ones. That question can be answered without looking at the
-molecule. If some proteins have many positive pairs in the training data and
-others have none, a model that scores every pair of a popular protein high
-will pass pooled AUC, no matter how it treats the molecule. That is an
+than unbound ones. On the splits these benchmarks use, that question mixes
+two signals that have nothing to do with the interaction: molecules recur
+between training and test, so molecule-level regularities alone can lift
+pooled AUC, and the per-protein label marginal shapes whatever structure the
+scores contain --- a model that scores every pair of a popular protein high
+reproduces that marginal without conditioning on the molecule. That is an
 instance of shortcut learning~\citep{geirhos2020shortcut}: the model
 exploits a spurious correlation that is predictive on the training
 distribution but irrelevant to the task. Leakage and
@@ -132,7 +134,8 @@ rebounds to $0.91$ (the shortcut returns the moment the ranking objective
 is gone).
 
 Section~2.3 adds a residue-level attention pool over per-residue ESM2
-embeddings ($+0.6\%$ parameters, $+0.10$ absolute \mrr{}), together with an
+embeddings ($+0.6\%$ parameters, $+0.07$ absolute \mrr{} on the shared
+seed-42 anchor), together with an
 audit of what that attention actually does. Section~2.4 tests the diagnosis
 and the recipe on seven datasets, each scored against a matched BCE control
 trained on the same data. The control reproduces the BRENDA dissociation
@@ -153,7 +156,7 @@ recipe. Code and all three-seed manifests are released.
 \section{Results}
 \label{sec:results}
 
-\subsection{Pooled AUC certifies protein popularity on BRENDA-200}
+\subsection{Pooled metrics pass where ligand-conditional ranking fails}
 \label{sec:shortcut}
 
 We use BRENDA-200, a $200\times200$ subset of the BRENDA enzyme--substrate
@@ -180,8 +183,7 @@ fallback, and protein prevalence alone cannot lift pooled test AUC on
 this split.
 Matrix per-molecule AUC evaluates the same metric on the full
 $200\times200$ pool ($n=30$ held-out positive molecules); the test-pair
-version rests on $n=4$. \method\ values are three-seed means; its
-per-molecule AUC is seed-42.}
+version rests on $n=4$. \method\ values are three-seed means.}
 \label{tab:phase1}
 \small
 \setlength{\tabcolsep}{5pt}
@@ -663,6 +665,9 @@ training positive rate of $P$; the random baseline scores uniformly. Gini is
 computed on the attractor shares of the score matrix (the per-protein
 fraction of molecules for which the protein is the top-scoring partner);
 0.5 means the shares are uniform, 1.0 that one protein wins every molecule.
+The \emph{Gini-residual} subtracts the prior's Gini from the model's:
+zero means the model matches the label marginal's concentration, negative
+values mean a more even spread of top ranks.
 The top-ten overlap is the Jaccard index between a model's ten largest
 attractor shares and the prior's. The per-row Spearman $\rho$ correlates,
 within each molecule's row,
@@ -705,14 +710,16 @@ requires. Neither the encoder components nor the interaction function are
 presented as innovations: \method\ is a controlled experimental vehicle for
 testing whether ligand-conditional ranking reduces shortcut behaviour, not
 an architectural proposal. The design makes the causal comparison clean ---
-the BCE control of Section~2.3 uses identical encoders, split and capacity,
+the BCE control of Section~2.2 uses identical encoders, split and capacity,
 so any difference in ranking behaviour is attributable to the objective,
 sampling and negative mining rather than to architectural capacity.
 
 Training uses AdamW ($\mathrm{lr} = 3\times10^{-4}$, cosine decay to
 $3\times10^{-5}$, weight decay $10^{-4}$, gradient clipping at 1.0), bf16,
 batch size 32 molecules, up to 50 epochs, early stopping on validation
-pooled AUC with patience 10 (minimum 20 epochs). The balanced sampler draws
+pooled AUC with patience 10 (minimum 20 epochs; the selection-rule
+sensitivity variant of Section~2.2 replaces this criterion with validation
+matrix \mrr{}). The balanced sampler draws
 16 pairs per protein per epoch with a 1:1 positive:negative ratio. The
 hard-negative pool is 50 on BRENDA-200 and the affinity benchmarks, and
 scaled to $\approx 50\%$ of the training protein count on the enzyme-wide
@@ -722,8 +729,9 @@ binary cross-entropy loss, random batches and the MLP-concat head. The BCE
 auxiliary probe adds a BCE term of weight 0.5 to the margin objective.
 
 Seeds $\{42, 7, 1337\}$ are used for all BRENDA-200 configurations
-(Sections~2.1--2.3); the transfer runs of Section~2.4 are single-seed (seed
-42). Hardware: one NVIDIA A30 GPU per run, about 1.5\,h per seed for the
+(Sections~2.1--2.3); the transfer runs of Section~2.4 report the seed-42
+anchor in Table~3, with supplementary extra seeds (7 and 1337) for the
+three BRENDA+SABIO families. Hardware: one NVIDIA A30 GPU per run, about 1.5\,h per seed for the
 default and 4\,h for the residue-level variant.
 
 \subsubsection{Seeds and split pinning}
