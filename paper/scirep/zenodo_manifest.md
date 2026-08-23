@@ -2,12 +2,15 @@
 
 Was für einen Zenodo-Record zum Sci-Rep-Manuskript (`paper/scirep/main.tex`)
 hochgeladen werden muss, was bereits auf dem System liegt, und was zuerst
-regeneriert werden muss. Stand: **2026-08-21** (Regeneration abgeschlossen,
-Staging fertig), geprüft gegen das lokale System.
+regeneriert werden muss. Stand: **2026-08-23** (Repo-Commit `614ee88`;
+Papier-Revision, Poster-Sync und Bootstrap-Korrektur committed; Staging
+bedarf der Aktualisierung, Upload ausstehend), geprüft gegen das lokale
+System.
 
 **Workspace:** `/work2/zw93onug-rankbind_zenodo` (`ws_allocate rankbind_zenodo 30`,
 6 Extensions übrig). Staging: `.../zenodo_staging/rankbind-paper-v1/` und
-`.../zenodo_staging/rankbind-benchmark-embeddings-v1/`.
+`.../zenodo_staging/rankbind-benchmark-embeddings-v1/` (Stand 2026-08-21,
+**vor** den Revisionen unten — vor dem Upload neu aufbauen).
 
 ## Ziel
 
@@ -21,14 +24,14 @@ der berichteten Standardabweichungen, s. §5).
 
 | Artefakt | Pfad (lokal) | Größe | Bemerkung |
 |---|---|---|---|
-| Repo (Code, Configs, CSVs, Figuren) | `~/rankbind` @ `4ff68dc3` | ~10 MB | inkl. Submodul `reactionDataFiltering` @ `4d422d52` |
+| Repo (Code, Configs, CSVs, Figuren) | `~/rankbind` @ `614ee88` | ~11 MB | inkl. Submodul `reactionDataFiltering` @ `4d422d52`; Revision 2026-08-23 (s. §6) |
 | BRENDA-200 Paare | `data/dataset_with_decoys.csv` | 967 KB | 9.632 Paare, 3.175 Positiv / 6.457 Decoys |
 | BRENDA-200 Sequenzen | `data/sequences/sequences.csv` | 296 KB | |
 | BRENDA+SABIO Roh-Snapshot | `reactionDataFiltering/data/raw/brenda_sabio_2026-04-29/` | 923 MB | CSVs (kcat_km 3,2 MB, km 7,9 MB, turnover 4,5 MB) + AlphaFold-Strukturen (907 MB) |
 | BRENDA+SABIO interim | `reactionDataFiltering/data/interim/{kcat_km,km,turnover}_brenda_sabio/` | ~5 MB | `with_decoys.csv`, `sequences.csv`, `decoys.csv` + je Stufe `*.manifest.json` (SHA-256, Parameter, Versionen) |
 | Phase-1-Checkpoints | `results/original_{graphdta,moltrans,drugban,gems}/` | 255 MB | `best_model.pt` + `score_matrix_*.npy` |
-| RankBind-Runs | `results/v5_rankbind/` | 238 MB | 82 `manifest.json`, 77 `best_model.pt`, 75 Score-Matrizen, 75 `test_summary.json` |
-| Tabellenwerte | `evaluation/attractor_results/*.csv` | committed | Quelle aller Tabellen im Paper |
+| RankBind-Runs | `results/v5_rankbind/` | 238 MB | 82 `manifest.json`, 77 `best_model.pt`, 75 Score-Matrizen, 75 `test_summary.json`; inkl. Cold-Split-Runs (`v7_cold_*`) |
+| Tabellenwerte | `evaluation/attractor_results/*.csv` | committed | Quelle aller Tabellen im Paper; inkl. `cold_split_multiseed.csv`, `cold_split_runs.csv`, `null_baseline_firstclass_{ligand,double_cold}.csv` (Paper Tab. 3) |
 
 ## 2. Muss regeneriert werden (fehlt auf dem System)
 
@@ -99,7 +102,7 @@ Im Repo liegen die Pfade dann als Symlinks auf den Zenodo-Download
 4. [ ] `REPRODUCIBILITY.md` um Zenodo-DOI ergänzen (Abschnitt „Artefacts on Zenodo")
 5. [ ] Paper `Data availability` auf Zenodo-DOI zeigen (statt „on request")
 6. [ ] Smoke-Test aus frischem Klon: alle §3-Kommandos der REPRODUCIBILITY.md durchlaufen
-7. [ ] Zenodo-Records anlegen (Staging fertig; Upload + DOI ausstehend)
+7. [ ] Zenodo-Records anlegen (Upload + DOI ausstehend; **Staging zuerst auf `614ee88` neu aufbauen** — der 2026-08-21-Stand enthält die Revisionen aus §6 nicht)
 
 ## 5. Grenzen — was „reproduzierbar" hier bedeutet
 
@@ -113,3 +116,21 @@ Im Repo liegen die Pfade dann als Symlinks auf den Zenodo-Download
   `setup_venv.sh`), MolTransformer (extern, nicht auf PyPI — Installations-
   Anleitung in den Submodul-README), der 650-MB-Tarball des Snapshots
   (nicht auffindbar; das entpackte `raw/` wird hochgeladen).
+
+---
+
+## 6. Revision 2026-08-23 (Commit `614ee88`)
+
+Seit dem Staging-Stand (2026-08-21, `4ff68dc3`) ist folgendes im Repo
+gelandet und muss im Snapshot stecken:
+
+| Was | Commits | Betrifft Paper |
+|---|---|---|
+| Manuskript-Revision: neuer Titel „When Pooled AUC Lies…", gescopte Claims („not specific to BRENDA-200"), korrigierte Bootstrap-CIs im Intro, explizite Cold-Split-Logik | `d11a521` | Abstract/Intro/§2.4/§2.5/Discussion |
+| Paired-Bootstrap-Fix: `paired_molecule_stats.py` baut den Split jetzt aus `data.split_seed=42` statt aus dem Trainings-Seed; CIs +0.23/+0.20/+0.17 (alle exkludieren 0) | `d11a521` | Intro |
+| Cold-Split-Code und -Daten: `get_ligand_split`/`get_double_cold_split` (common.py), `split_mode=ligand/double_cold` (data.py), Konfigurationen `v5_rankbind/configs/cold_*.json`, `scripts/aggregate_cold_splits.py`, `cold_split_multiseed.csv`, `null_baseline_firstclass_{ligand,double_cold}.csv` | `a31dd40`, `614ee88` | Tab. 3 + §4.1 |
+| Poster-Sync (`paper/poster_scads/`): alle Zahlen auf Pinned-Split-Stand, Titel/Subtitle wie Paper | `d11a521` | Poster |
+| Review-Artefakte: `CLAIM_EVIDENCE_MATRIX.md`, `REVIEW_TRIAGE.md`, `skill_jcim_revision.md` aktualisiert/ergänzt | `d11a521`, `614ee88` | — |
+
+Der 2026-08-21-Stand des Stagings reproduziert diese Zahlen **nicht**
+(v.a. Tab. 3 und die Intro-CIs); vor dem Upload neu stagen.
