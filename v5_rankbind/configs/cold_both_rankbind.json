@@ -1,0 +1,6 @@
+{
+  "extends": "default.json",
+  "name": "cold_both_rankbind",
+  "description": "RankBind full model on the DOUBLE-COLD split (neither proteins nor ligands recur across folds). Skill \u00a75-7 stress test: same protocol as default_v4, only the split definition changes.",
+  "data": { "split_mode": "double_cold" }
+}

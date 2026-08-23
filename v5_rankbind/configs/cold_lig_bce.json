@@ -1,0 +1,6 @@
+{
+  "extends": "abl_bce_only.json",
+  "name": "cold_lig_bce",
+  "description": "BCE control (Phase-1-style recipe: random sampler + BCE + MLP head) on the COLD-LIGAND split. Matched control for cold_lig_rankbind.",
+  "data": { "split_mode": "ligand" }
+}

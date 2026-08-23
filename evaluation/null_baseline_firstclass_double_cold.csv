@@ -1,0 +1,4 @@
+null,pooled_auc_test_pool,pooled_auc_test_full_split,mrr_raw,hit_at_5_raw,hit_at_10_raw,mrr_tie_aware,hit_at_5_tie_aware,hit_at_10_tie_aware,gini,jaccard_top10_vs_prot_prior
+null_random,,0.5351,0.0721,0.1667,0.1667,0.0721,0.1667,0.1667,0.5088,0.03
+null_prot_prior,,0.5,0.0143,0.0,0.0,0.0095,0.0,0.0,0.995,1.0
+null_lig_prior,,0.5,1.0,1.0,1.0,0.0122,0.0,0.0,0.995,0.0

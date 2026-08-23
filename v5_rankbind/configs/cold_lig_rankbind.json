@@ -1,0 +1,6 @@
+{
+  "extends": "default.json",
+  "name": "cold_lig_rankbind",
+  "description": "RankBind full model on the COLD-LIGAND split (ligand-disjoint; proteins recur). Skill \u00a75-7 stress test: same protocol as default_v4, only the split definition changes.",
+  "data": { "split_mode": "ligand" }
+}

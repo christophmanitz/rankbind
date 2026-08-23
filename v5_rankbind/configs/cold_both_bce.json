@@ -1,0 +1,6 @@
+{
+  "extends": "abl_bce_only.json",
+  "name": "cold_both_bce",
+  "description": "BCE control (Phase-1-style recipe: random sampler + BCE + MLP head) on the DOUBLE-COLD split. Matched control for cold_both_rankbind.",
+  "data": { "split_mode": "double_cold" }
+}
