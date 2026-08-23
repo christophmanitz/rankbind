@@ -24,7 +24,7 @@ der berichteten Standardabweichungen, s. §5).
 
 | Artefakt | Pfad (lokal) | Größe | Bemerkung |
 |---|---|---|---|
-| Repo (Code, Configs, CSVs, Figuren) | `~/rankbind` @ `614ee88` | ~11 MB | inkl. Submodul `reactionDataFiltering` @ `4d422d52`; Revision 2026-08-23 (s. §6) |
+| Repo (Code, Configs, CSVs, Figuren) | `~/rankbind` @ `272ef66` | ~11 MB | inkl. Submodul `reactionDataFiltering` @ `4d422d52`; Revision 2026-08-23 (s. §6) |
 | BRENDA-200 Paare | `data/dataset_with_decoys.csv` | 967 KB | 9.632 Paare, 3.175 Positiv / 6.457 Decoys |
 | BRENDA-200 Sequenzen | `data/sequences/sequences.csv` | 296 KB | |
 | BRENDA+SABIO Roh-Snapshot | `reactionDataFiltering/data/raw/brenda_sabio_2026-04-29/` | 923 MB | CSVs (kcat_km 3,2 MB, km 7,9 MB, turnover 4,5 MB) + AlphaFold-Strukturen (907 MB) |
@@ -119,10 +119,10 @@ Im Repo liegen die Pfade dann als Symlinks auf den Zenodo-Download
 
 ---
 
-## 6. Revision 2026-08-23 (Commit `614ee88`)
+## 6. Revision 2026-08-23 (Commit `272ef66`)
 
 Seit dem Staging-Stand (2026-08-21, `4ff68dc3`) ist folgendes im Repo
-gelandet und muss im Snapshot stecken:
+gelandet und muss im Snapshot stecken (Staging **neu gebaut 2026-08-23**):
 
 | Was | Commits | Betrifft Paper |
 |---|---|---|
