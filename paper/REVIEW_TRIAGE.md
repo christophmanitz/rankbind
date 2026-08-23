@@ -18,11 +18,17 @@ Status as of 2026-08-22.
 
 ## Deferred — needs new experiments or cluster time
 
-1. **10-seed head comparison** (ML #1): bilinear vs MLP SD ratio from
-   3v3 is anecdotal. Cheap (~15 GPU-h). Queue after current jobs.
-2. **Paired molecule-level bootstrap CIs in main tables** (ML #2/#5):
-   machinery exists (`evaluation/paired_molecule_stats.py`), must be
-   refreshed against pinned-split runs and added to Table 2 rows.
+1. **10-seed head comparison** (ML #1): IN FLIGHT 2026-08-22 — 14 SLURM
+   runs submitted (configs `default` + `abl_no_bilinear`, seeds
+   {1,2,3,5,6,8,11}, tag `v6`, n=10 per head incl. existing 3).
+   `aggregate_multiseed.py` extended (generic `_s<seed>` suffix,
+   SWEEP_SEEDS, head-stability SD-ratio printout). When landed:
+   `python scripts/aggregate_multiseed.py`, then update the bilinear
+   stability sentences (§1 intro list, §2.3) with the n=10 SD ratio.
+2. **Paired molecule-level bootstrap CIs** (ML #2/#5): DONE 2026-08-22 —
+   `paired_molecule_stats.py` rewritten to seed-PAIRED canonical runs;
+   all three seeds' CIs exclude zero (+0.23/+0.39/+0.43 vs control,
+   rb ≥ 0.95 vs prior); CI sentence added to §1 results paragraph.
 3. **Double-cold holdout** (SCIREP #6, JCIM falsification): molecules AND
    proteins unseen — the decisive test whether RankBind learns interaction
    vs molecule identity. New run set, medium cost.

@@ -131,7 +131,11 @@ seeds on the same split lift \mrr{} from $0.014$ for a binary cross-entropy
 chance to $0.878 \pm 0.020$. The ablation isolates the margin loss as the dominant
 lever: removing it collapses \mrr{} by a factor of eleven and pooled AUC
 rebounds to $0.91$ (the shortcut returns the moment the ranking objective
-is gone).
+is gone). A molecule-level paired bootstrap over the $200\times200$ matrix
+(5{,}000 replicates) puts the \method--control \mrr{} difference at
+$+0.23$ [95\% CI $+0.16$, $+0.32$], $+0.39$ [$+0.27$, $+0.52$] and $+0.43$
+[$+0.32$, $+0.53$] for seeds 42/7/1337 --- every interval excludes zero,
+and the same holds against the molecule-blind prior.
 
 Section~2.3 adds a residue-level attention pool over per-residue ESM2
 embeddings ($+0.6\%$ parameters, $+0.07$ absolute \mrr{} on the shared

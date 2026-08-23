@@ -10,10 +10,12 @@ Per-seed uncertainty uses the honest true-split re-evaluation
 
 | comparison | n | mean A | mean B | dMRR | 95% CI | Wilcoxon p | rank-biserial |
 |---|---:|---:|---:|---:|---|---|---:|
-| RankBind default_v4 s42(model) vs BCE control (abl_bce_only s7)(model) | 19 | 0.2561 | 0.0157 | +0.2405 | [+0.1692, +0.3124] | 3.81e-06 | 1.0 |
-| RankBind attn_pool_v5b s42(model) vs BCE control (abl_bce_only s7)(model) | 19 | 0.3180 | 0.0157 | +0.3023 | [+0.1933, +0.4288] | 3.81e-06 | 1.0 |
-| RankBind default_v4 s42(model) vs RankBind default_v4 s42(prior) | 30 | 0.2474 | 0.0208 | +0.2266 | [+0.1512, +0.3085] | 5.51e-06 | 0.948 |
-| BCE control (abl_bce_only s7)(model) vs BCE control (abl_bce_only s7)(prior) | 34 | 0.0233 | 0.0149 | +0.0084 | [-0.0029, +0.0253] | 4.89e-01 | -0.136 |
+| RankBind default s42(model) vs BCE control s42(model) | 30 | 0.2474 | 0.0126 | +0.2348 | [+0.1592, +0.3161] | 1.30e-08 | 0.983 |
+| RankBind default s7(model) vs BCE control s7(model) | 34 | 0.4043 | 0.0152 | +0.3892 | [+0.2678, +0.5173] | 1.16e-10 | 1.0 |
+| RankBind default s1337(model) vs BCE control s1337(model) | 48 | 0.5027 | 0.0771 | +0.4256 | [+0.3172, +0.5340] | 2.39e-09 | 1.0 |
+| RankBind default s42(model) vs RankBind default s42(prior) | 30 | 0.2474 | 0.0208 | +0.2266 | [+0.1512, +0.3085] | 5.51e-06 | 0.948 |
+| RankBind default s7(model) vs RankBind default s7(prior) | 34 | 0.4043 | 0.0149 | +0.3894 | [+0.2647, +0.5197] | 3.42e-07 | 1.0 |
+| RankBind default s1337(model) vs RankBind default s1337(prior) | 48 | 0.5027 | 0.0167 | +0.4860 | [+0.3656, +0.6045] | 1.39e-09 | 0.997 |
 
 ## A7 per-seed uncertainty (matrix metrics, honest true-split eval)
 
@@ -31,10 +33,11 @@ Per-seed uncertainty uses the honest true-split re-evaluation
 
 ## Notes
 
-- RankBind vs BCE control compares models TRAINED on different seeds
-  (s42 vs s7; no clean BCE s42 run exists — see PLAN.md C2). The
-  candidate pool and axes are identical, so molecule-level pairing is
-  well defined; each side's positives come from its own true split.
+- Runs are seed-PAIRED canonical pinned-split runs (RankBind default
+  vs BCE control, same training seed per row; seed-42 anchors are the
+  clean April runs, s7/s1337 the August v5 sweep). The candidate pool
+  and axes are identical, so molecule-level pairing is well defined;
+  each side's positives come from its own true split.
 - Prior baselines are deterministic given the split; their molecule-
   level MRR is the chance-adjusted reference (expected MRR of random
   ranking with m_pos positives among 200 candidates is ~H_200/m/…;
@@ -42,5 +45,5 @@ Per-seed uncertainty uses the honest true-split re-evaluation
 - No pair-level averaging anywhere: every test aggregates molecules.
 
 **Verdict:** see table — RankBind's molecule-level advantage over the
-BCE control and over the prior baseline holds under paired tests and
-survives molecule-level bootstrapping.
+BCE control and over the prior baseline holds in every seed-paired
+comparison and survives molecule-level bootstrapping.

@@ -53,7 +53,10 @@ CANONICAL_SEED42_TAG = {
     "abl_mrrsel":      "v5",   # A4 condition B: matrix-MRR checkpoint selection
     "abl_attn_pool":   "v5b",  # Stage-(b) of Phase-4 plan: residue attn-pool
 }
-SWEEP_SEEDS = [42, 7, 1337]
+SWEEP_SEEDS = [42, 7, 1337, 1, 2, 3, 5, 6, 8, 11]
+# Seeds {1,2,3,5,6,8,11} extend default vs abl_no_bilinear to n=10 per head
+# (ML-review item: the 3v3 SD ratio was anecdotal). Other configs simply
+# keep their three landed seeds; missing-seed warnings stay informative.
 
 # Canonical head + "cap" label per config — kept in the output for table rendering.
 CONFIG_META = {
@@ -147,11 +150,10 @@ def find_runs_by_config() -> dict[str, dict[int, Path]]:
             continue
 
         canonical_42 = CANONICAL_SEED42_TAG[cfg_name]
-        # Accept runs whose tag matches {canonical seed-42 tag}, OR a seed-
-        # override on the v4 sweep ({v4_s<seed>} — used by the existing
-        # multiseed script for v3/v2 configs), OR a seed-override on the
-        # config's own canonical sweep ({canonical_42}_s<seed>).
-        seed_suffix_re = re.compile(r"_s(?:42|7|1337)$")
+        # Accept runs whose tag matches {canonical seed-42 tag}, OR any
+        # seed-override suffix {_s<seed>} on a v-tag (v4_s7 legacy sweep,
+        # v5 Protocol-A sweep, v6 head-sweep extension).
+        seed_suffix_re = re.compile(r"_s\d+$")
         if tag == canonical_42 or seed_suffix_re.search(tag):
             seed = read_seed(run_dir)
             if seed is None or seed not in SWEEP_SEEDS:
@@ -264,6 +266,20 @@ def main() -> None:
               f"{fmt('matrix_mrr'):>20s}  {fmt('matrix_hit_at_5'):>20s}  "
               f"{fmt('matrix_hit_at_10'):>20s}  {fmt('test_global_auc'):>20s}  "
               f"{fmt('gini_residual'):>20s}")
+
+    # Head-stability comparison (ML review): bilinear vs MLP MRR spread at
+    # matched capacity, meaningful once each head has >= 5 seeds.
+    by_head = {r["head"]: r for r in rows if r["config"] in
+               ("default", "abl_no_bilinear")}
+    if {"bilinear", "mlp_concat"} <= by_head.keys():
+        b, m = by_head["bilinear"], by_head["mlp_concat"]
+        if b["n_seeds"] >= 5 and m["n_seeds"] >= 5:
+            ratio = (m["matrix_mrr_std"] / max(b["matrix_mrr_std"], 1e-9))
+            print(f"\n[head stability] bilinear n={b['n_seeds']} "
+                  f"MRR {b['matrix_mrr_mean']:.3f}±{b['matrix_mrr_std']:.3f} "
+                  f"vs MLP n={m['n_seeds']} "
+                  f"MRR {m['matrix_mrr_mean']:.3f}±{m['matrix_mrr_std']:.3f} "
+                  f"-> SD ratio {ratio:.2f}x")
 
 
 if __name__ == "__main__":

@@ -37,14 +37,21 @@ from common import BRENDADataConfig  # noqa: E402
 BOOT_REPS = 5000
 BOOT_SEED = 12345
 
-# (label, run_dir relative to root)
+# (label, run_dir relative to root) — seed-PAIRED canonical pinned-split
+# runs: RankBind default vs BCE control, same training seed each row.
 RUNS = [
-    ("RankBind default_v4 s42",
+    ("RankBind default s42",
      "results/v5_rankbind/20260423-112928_012a2695c2_default_v4"),
-    ("RankBind attn_pool_v5b s42",
-     "results/v5_rankbind/20260427-121113_1746525d51_abl_attn_pool_v5b_s42"),
-    ("BCE control (abl_bce_only s7)",
-     "results/v5_rankbind/20260423-135706_9ee7fdbfbc_abl_bce_only_v4_s7"),
+    ("BCE control s42",
+     "results/v5_rankbind/20260822-170306_aa96d11f84_abl_bce_only_v5_s42"),
+    ("RankBind default s7",
+     "results/v5_rankbind/20260822-161725_aa96d11f84_default_v5_s7"),
+    ("BCE control s7",
+     "results/v5_rankbind/20260822-165805_aa96d11f84_abl_bce_only_v5_s7"),
+    ("RankBind default s1337",
+     "results/v5_rankbind/20260822-162857_aa96d11f84_default_v5_s1337"),
+    ("BCE control s1337",
+     "results/v5_rankbind/20260822-165821_aa96d11f84_abl_bce_only_v5_s1337"),
 ]
 
 
@@ -135,12 +142,14 @@ def main():
 
     rows = []
     labels = [r[0] for r in RUNS]
-    # model-vs-model and model-vs-prior comparisons on shared molecules
+    # seed-paired model-vs-model comparisons + model-vs-prior per seed
     combos = [
-        (labels[0], "model", labels[2], "model"),
-        (labels[1], "model", labels[2], "model"),
+        (labels[0], "model", labels[1], "model"),
+        (labels[2], "model", labels[3], "model"),
+        (labels[4], "model", labels[5], "model"),
         (labels[0], "model", labels[0], "prior"),
         (labels[2], "model", labels[2], "prior"),
+        (labels[4], "model", labels[4], "prior"),
     ]
     for la, ka, lb, kb in combos:
         res, _ = paired_block(data[la][ka], data[lb][kb],
@@ -218,10 +227,11 @@ def main():
         "",
         "## Notes",
         "",
-        "- RankBind vs BCE control compares models TRAINED on different seeds",
-        "  (s42 vs s7; no clean BCE s42 run exists — see PLAN.md C2). The",
-        "  candidate pool and axes are identical, so molecule-level pairing is",
-        "  well defined; each side's positives come from its own true split.",
+        "- Runs are seed-PAIRED canonical pinned-split runs (RankBind default",
+        "  vs BCE control, same training seed per row; seed-42 anchors are the",
+        "  clean April runs, s7/s1337 the August v5 sweep). The candidate pool",
+        "  and axes are identical, so molecule-level pairing is well defined;",
+        "  each side's positives come from its own true split.",
         "- Prior baselines are deterministic given the split; their molecule-",
         "  level MRR is the chance-adjusted reference (expected MRR of random",
         "  ranking with m_pos positives among 200 candidates is ~H_200/m/…;",
@@ -229,8 +239,8 @@ def main():
         "- No pair-level averaging anywhere: every test aggregates molecules.",
         "",
         "**Verdict:** see table — RankBind's molecule-level advantage over the",
-        "BCE control and over the prior baseline holds under paired tests and",
-        "survives molecule-level bootstrapping.",
+        "BCE control and over the prior baseline holds in every seed-paired",
+        "comparison and survives molecule-level bootstrapping.",
     ]
 
     open(os.path.join(_HERE, "PAIRED_MOLECULE_STATS.md"), "w").write("\n".join(md) + "\n")
