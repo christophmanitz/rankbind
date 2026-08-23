@@ -56,18 +56,18 @@
 
 \newcommand{\headlineband}{%
 	\noindent\panel{%
-		\stat{0.326\pmt0.072}{ranking score}{How high a molecule's true
+		\stat{0.220\pmt0.026}{ranking score}{How high a molecule's true
 			targets land. 1.0 = always first, 0.029 = guessing. Ordinary
-			training on the same model: 0.015.}%
+			training on the same model: 0.014.}%
 		\hfill
 		\stat{0.018}{overlap with the cheat sheet}{Favourite proteins shared
 			with a baseline that never sees the molecule. Published models:
 			0.05--0.67.}%
 		\hfill
-		\stat{0.95\arr0.63}{pooled AUC, given up}{One score over all
+		\stat{0.92\arr0.62}{pooled AUC, given up}{One score over all
 			pairs at once, and exactly the score the shortcut wins.}%
 		\hfill
-		\stat{7 datasets}{the problem is everywhere}{The same test on seven
+		\stat{7 datasets}{the problem repeats}{The same test on seven
 			corpora: ordinary training fails the ranking question every time.}%
 	}%
 }
@@ -101,8 +101,8 @@
 %===============================================================================
 % TITLE
 %===============================================================================
-\title{RankBind: Ligand-Conditional Ranking for Drug--Target Interaction}
-\subtitle{Pooled AUC on enzyme--substrate benchmarks certifies a protein-level shortcut: a probe that detects it, and four ingredients that break it}
+\title{When Pooled AUC Lies: Ligand-Conditional Ranking in Enzyme--Substrate Interaction Benchmarks}
+\subtitle{Pooled AUC on enzyme--substrate benchmarks can certify dataset-level regularities, not ligand-conditional ranking: a probe that detects the shortcut, and four ingredients that break it}
 \myauthor{Christoph Manitz{\textsuperscript{\footnotesize 1}}, Georg K\"unze{\textsuperscript{\footnotesize 1}}}
 \affiliation{{\footnotesize 1} Leipzig University, Germany}
 

@@ -39,6 +39,11 @@ BOOT_SEED = 12345
 
 # (label, run_dir relative to root) — seed-PAIRED canonical pinned-split
 # runs: RankBind default vs BCE control, same training seed each row.
+# All runs train AND evaluate on the pinned canonical protein split
+# (data.split_seed=42); the training seed only varies initialisation,
+# shuffling and negative sampling. The seed-42 anchor is the April v4 run
+# (the August v5 sweep did not re-run seed 42); it uses the same
+# default.json recipe and the same canonical split as the v5 runs.
 RUNS = [
     ("RankBind default s42",
      "results/v5_rankbind/20260423-112928_012a2695c2_default_v4"),
@@ -58,8 +63,13 @@ RUNS = [
 def load_run(rd):
     man = json.load(open(os.path.join(_ROOT, rd, "manifest.json")))
     cfg = man["config_resolved"]
+    # The split is the PINNED canonical protein split (data.split_seed, 42),
+    # independent of the training seed. Building the split from the training
+    # seed instead (an earlier bug in this script) evaluated seeds 7/1337 on
+    # a non-canonical split whose test proteins the model had trained on.
+    split_seed = int(cfg["data"].get("split_seed", 42))
     bc = BRENDADataConfig(
-        seed=cfg["seed"],
+        seed=split_seed,
         csv_path=os.path.join(_ROOT, cfg["data"]["csv_path"]),
         seq_csv=os.path.join(_ROOT, cfg["data"]["seq_csv"]),
         val_frac=cfg["data"]["val_frac"],
@@ -232,6 +242,8 @@ def main():
         "  clean April runs, s7/s1337 the August v5 sweep). The candidate pool",
         "  and axes are identical, so molecule-level pairing is well defined;",
         "  each side's positives come from its own true split.",
+        "- All runs are evaluated on the PINNED canonical split",
+        "  (data.split_seed=42), not on a split drawn from the training seed.",
         "- Prior baselines are deterministic given the split; their molecule-",
         "  level MRR is the chance-adjusted reference (expected MRR of random",
         "  ranking with m_pos positives among 200 candidates is ~H_200/m/…;",

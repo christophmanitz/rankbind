@@ -41,7 +41,8 @@
 \newcommand{\nullprior}{\textsc{null\_prot\_prior}\xspace}
 \newcommand{\mrr}{matrix MRR}
 
-\title{\textbf{\method: Ligand-Conditional Ranking for\\ Drug--Target Interaction Benchmarks}}
+\title{\textbf{When Pooled AUC Lies: Ligand-Conditional Ranking in\\
+Enzyme--Substrate Interaction Benchmarks}}
 
 \author[1]{Christoph Manitz}
 \affil[1]{Leipzig University, Germany \\
@@ -68,10 +69,18 @@ margin loss, online hard-negative mining, protein-balanced sampling and a
 low-rank bilinear head. On a protein-stratified split \method\ lifts \mrr{}
 from 0.014 (binary cross-entropy control) to $0.220 \pm 0.026$ (three seeds)
 and cuts the top-ten overlap with the molecule-blind baseline from
-$0.54$--$0.67$ to $0.02$. The pattern is not a BRENDA artefact. A matched
-BCE control reproduces the dissociation on all seven datasets we test
-(pooled AUC $0.84$--$0.98$, near-chance ranking), and \method\ circumvents it
-on every catalytic enzyme dataset, with \mrr{} $7$--$25\times$ the control.
+$0.54$--$0.67$ (three of four models) to $0.02$. The dissociation is
+reproduced across the enzyme--substrate corpora tested here and is not
+specific to the BRENDA-200 split: a matched BCE control posts pooled AUC
+$0.84$--$0.98$ at near-chance ranking on all seven datasets we test, and
+\method\ circumvents it on each catalytic enzyme dataset tested, with \mrr{}
+$7$--$25\times$ the control.
+Cold-ligand and double-cold splits of the same corpus show that this
+dissociation is not explained by ligand recurrence: with no test molecule
+seen in training the control still posts pooled AUC $0.85$ at chance-level
+\mrr{}, and under double-cold --- no test molecule or protein recurs and
+both molecule-blind marginals sit at exactly $0.500$ --- it posts $0.81$;
+\method\ retains ranking signal on both splits (\mrr{} $0.30$/$0.09$).
 Code, configurations and per-run manifests are public.
 \end{abstract}
 
@@ -111,10 +120,11 @@ matrix. On a protein-stratified split of the BRENDA enzyme--substrate corpus
 ``is a documented substrate of''), all four published models pass the first
 test and fail the second (Section~2.1). Their per-molecule ranking AUC is
 indistinguishable from chance ($0.43$--$0.53$ against a chance level of
-$0.5$), and their behaviour is indistinguishable from a molecule-blind
+$0.5$), and their behaviour largely reproduces a molecule-blind
 baseline that scores each protein by its training positive rate: the same
-Gini concentration of $\approx 0.995$, and $54$--$67\%$ overlap in the
-top-ten most-scored proteins. Pooled AUC here certifies dataset-level
+Gini concentration of $\approx 0.995$ ($0.987$ for MolTrans) and, for three
+of the four models, $54$--$67\%$ overlap in the top-ten most-scored
+proteins. Pooled AUC here certifies dataset-level
 regularities rather than ligand-conditional discrimination; which
 regularity carries the points, and which only shapes the score geometry,
 Section~2.1 separates with a construction argument. Gini, which we
@@ -132,28 +142,40 @@ chance to $0.878 \pm 0.020$. The ablation isolates the margin loss as the domina
 lever: removing it collapses \mrr{} by a factor of eleven and pooled AUC
 rebounds to $0.91$ (the shortcut returns the moment the ranking objective
 is gone). A molecule-level paired bootstrap over the $200\times200$ matrix
-(5{,}000 replicates) puts the \method--control \mrr{} difference at
-$+0.23$ [95\% CI $+0.16$, $+0.32$], $+0.39$ [$+0.27$, $+0.52$] and $+0.43$
-[$+0.32$, $+0.53$] for seeds 42/7/1337 --- every interval excludes zero,
-and the same holds against the molecule-blind prior.
+(5{,}000 replicates; test positives from the pinned split) puts the
+\method--control \mrr{} difference at $+0.23$ [95\% CI $+0.16$, $+0.32$],
+$+0.20$ [$+0.11$, $+0.31$] and $+0.17$ [$+0.11$, $+0.23$] for seeds
+42/7/1337 --- every interval excludes zero, and the same holds against the
+molecule-blind prior.
 
 Section~2.3 adds a residue-level attention pool over per-residue ESM2
 embeddings ($+0.6\%$ parameters, $+0.07$ absolute \mrr{} on the shared
-seed-42 anchor), together with an
-audit of what that attention actually does. Section~2.4 tests the diagnosis
+seed-42 anchor; a single-seed mechanistic analysis,
+Section~\ref{sec:residue}), together with an
+audit of what that attention actually does.
+Section~2.4 stress-tests the explanation itself: two further splits of the
+same corpus hold out molecules (cold-ligand) and molecules \emph{and}
+proteins (double-cold), each scored against a matched BCE control. The
+dissociation survives both: with no test molecule recurring, the pairwise
+control still passes pooled AUC at chance-level ranking, and under
+double-cold --- where no test identity recurs and both molecule-blind
+marginals are provably uninformative --- it does so as well, while
+\method{} keeps ranking signal on both splits. Section~2.5 tests the diagnosis
 and the recipe on seven datasets, each scored against a matched BCE control
-trained on the same data. The control reproduces the BRENDA dissociation
-everywhere (pooled AUC $0.84$--$0.98$, near-chance ranking); \method\
-circumvents it on every catalytic enzyme dataset ($7$--$25\times$ the
+trained on the same data. The control reproduces the dissociation on all
+seven datasets tested (pooled AUC $0.84$--$0.98$, near-chance ranking);
+\method\
+circumvents it on each catalytic enzyme dataset tested ($7$--$25\times$ the
 control's \mrr{}) and on one independent enzyme--substrate corpus, ESP, it
 ranks best of all seven datasets ($0.387$) without giving up pooled AUC.
 Two kinase affinity benchmarks (Davis, KIBA) bound the claim: there the
 molecule-blind prior carries no ranking signal, so there is no shortcut to
 circumvent.
 
-The practical conclusion is short: on enzyme--substrate data, pooled AUC is
+The practical conclusion is short: on the enzyme--substrate benchmarks
+studied here, pooled AUC is
 not a meaningful success gate, and a molecule-blind null baseline should be
-run before reporting it. Section~2.5 distils the findings into a five-point
+run before reporting it. Section~2.6 distils the findings into a five-point
 recipe. Code and all three-seed manifests are released.
 
 %===============================================================================
@@ -233,18 +255,73 @@ $0.798$ on average).
 The dissociation has two axes, and our instruments separate them. The
 protein axis is structural: copying the per-protein label marginal shapes
 the score matrix into the prior's stripes, but it cannot raise pooled test
-AUC, which the split caps at chance ($0.500$, Table~\ref{tab:phase1}). The
-molecule axis is where the pooled points come from: ligands recur across
-the protein split, and the decoy protocol assigns each one a fixed role
-(quantified in the Discussion), so
-molecular memorisation alone reaches $0.915$ pooled AUC on this test
-split---DrugBAN and MolTrans sit at or barely above that line, GEMS and
-GraphDTA below it, and \method{} deliberately below both. A controlled
-synthetic experiment isolates the metric side of the critique: two
-artificial $200\times200$ worlds with statistically identical pooled AUC
-($0.897$ vs.\ $0.890$) differ by $4.4\times$ in within-molecule ranking
-MRR ($0.049$ vs.\ $0.217$), so pooled AUC cannot distinguish
-shortcut-driven from signal-driven performance even in principle.
+AUC, which the split caps at chance ($0.500$, Table~\ref{tab:phase1}).
+
+The molecule axis is where the pooled points come from, and the decoy
+construction quantifies it. Of the 4{,}604 unique ligands, 1{,}417 appear
+only as documented substrates and 3{,}157 only as decoy carriers
+(99.3\% label-pure): the decoy protocol assigns each molecule a fixed
+role instead of sampling negatives per protein, and the protein-stratified
+split holds out proteins, not molecules---53.6\% of the molecules in test
+pairs also occur in training rows (scaffold overlap 71.5\%). Ligand
+identity alone therefore transfers to the test split. A linear probe on
+frozen ChemBERTa/ESM2 features (no training, one logistic regression)
+reaches pooled test AUC $0.887$ from the ligand vector alone and $0.833$
+with both blocks, and its matrix \mrr{} is $0.029$---exactly the chance
+level of 200 candidates (Hit@5 $0.00$): high pooled AUC with
+chance-level ligand-conditional ranking, reproduced by a linear readout
+(Table~\ref{tab:sources}).
+The per-ligand training-rate prior reaches $0.915$ pooled AUC on the full
+test split, above two of the four published baselines: molecular
+memorisation alone reproduces a large share of the trained models'
+pooled-AUC range without any interaction learning. DrugBAN and MolTrans
+sit at or barely above that line, GEMS and GraphDTA below it, and
+\method{} deliberately below both. A controlled synthetic experiment
+isolates the metric side of the critique: two artificial $200\times200$
+worlds with statistically identical pooled AUC ($0.897$ vs.\ $0.890$)
+differ by $4.4\times$ in within-molecule ranking MRR ($0.049$ vs.\
+$0.217$), so pooled AUC cannot distinguish shortcut-driven from
+signal-driven performance even in principle.
+
+Table~\ref{tab:sources} consolidates these information sources on the
+canonical split and makes the central distinction visible: pooled AUC rises
+to $0.89$--$0.92$ from sources that never model the interaction, while the
+task-aligned ranking metric separates trained from untrained behaviour far
+more sharply than pooled AUC does.
+
+\begin{table}[t]
+\centering
+\caption{What each information source achieves on the BRENDA-200 canonical
+split (protein-stratified). Pooled AUC over the full test split; \mrr{} on
+the $200\times200$ pool (chance $\approx 0.029$ at 200 candidates). The two
+prior rows are molecule-blind/protein-blind training-rate scorers; the probe
+rows are one logistic regression on frozen ChemBERTa/ESM2 features with no
+DTI training. Ranking metrics are reported only for sources with continuous,
+pair-resolved scores: for the constant priors and the discrete random
+baseline the optimistic tie rule makes them degenerate (Methods). Model rows:
+three seeds under the registered protocol of Table~\ref{tab:ablation} (the
+ten-seed extension gives $\mrr{} = 0.182\pm0.075$); BCE control values as
+in Table~\ref{tab:ablation}. Regenerable from
+\texttt{null\_baseline\_firstclass.csv}, \texttt{decoy\_leakage\_probe.csv}
+and the multiseed aggregate.}
+\label{tab:sources}
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lccrr}
+\toprule
+Information source & Sees mol.? & Sees prot.? & Pooled AUC & \mrr{} \\
+\midrule
+Random baseline                        & no  & no  & 0.500 & --- \\
+Protein-only prior (molecule-blind)    & no  & yes & 0.500 & --- \\
+Ligand-only prior (training rate)      & yes & no  & 0.915 & --- \\
+Ligand-only linear probe               & yes & no  & 0.887 & --- \\
+Ligand+protein linear probe            & yes & yes & 0.833 & 0.029 \\
+\midrule
+BCE control (pairwise objective)       & yes & yes & 0.918$\pm$0.003 & 0.014$\pm$0.002 \\
+\textbf{\method} (margin + hard negs)  & yes & yes & 0.618$\pm$0.005 & \textbf{0.220$\pm$0.026} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \begin{figure}[t]
   \centering
@@ -319,7 +396,9 @@ the three-seed spread gap) shows overlapping distributions --- bilinear
 $0.182\pm0.075$ versus MLP $0.143\pm0.097$ --- so the head choice moves the
 mean, not reliability. The last row re-selects checkpoints by
 validation matrix \mrr{} instead of validation pooled AUC (selection-rule
-sensitivity check).}
+sensitivity check). $^*$: the residue-attention row is a single-seed
+mechanistic variant (Section~\ref{sec:residue}), not part of any multi-seed
+comparison.}
 \label{tab:ablation}
 \small
 \setlength{\tabcolsep}{4pt}
@@ -341,8 +420,9 @@ $+$ residue attention pool$^*$ & \textbf{0.316} & 0.706 & 0.646 & $-0.245$ & 0.0
 
 Table~\ref{tab:ablation} orders the ingredients by what they buy. The margin
 loss is the dominant contribution: without it \mrr{} falls from $0.220$ to
-$0.020$ and pooled AUC jumps back to $0.91$ (the model stops ranking and
-re-learns the protein marginal). The balanced sampler is a secondary positive
+$0.020$ and pooled AUC jumps back to $0.91$ while the top-ten overlap with
+the prior stays at $0.02$ --- the rebound rides the molecule-side shortcut
+of Section~\ref{sec:shortcut}, not the protein marginal. The balanced sampler is a secondary positive
 ($-33\%$ when removed). The bilinear head wins on the mean ($0.220$
 versus $0.140$, overlapping three-seed ranges). Extending both head configs
 to ten seeds --- run precisely to test whether that gap reflects a
@@ -407,6 +487,11 @@ top-ten overlap of each model with the molecule-blind prior.
 \subsection{A residue-level attention pool: small gain, and the audit says why}
 \label{sec:residue}
 
+This section is a \emph{single-seed mechanistic analysis}: the variant is
+not replicated across seeds, it is not part of any headline comparison, and
+its value here is what the audit reveals about protein encoding, not the
+performance delta.
+
 The default mean-pools the per-residue ESM2 tensor. We replace the mean pool
 with a learned-query attention pool
 ($\alpha_i = \mathrm{softmax}(\mathbf{q}^\top \mathrm{LN}(\mathbf{e}_i)/\sqrt{d})$)
@@ -450,6 +535,122 @@ $+0.10$ \mrr{}. We report the attention pool because it is the module we
 trained; a parameter-free LayerNorm-then-mean pool is the cheap variant that
 should be tried first.
 
+\subsection{Cold-ligand and double-cold splits: the dissociation does not need recurring molecules}
+\label{sec:cold}
+
+The canonical split holds out proteins but not molecules: 53.6\% of test-pair
+ligands occur in training rows (Section~\ref{sec:shortcut}), which is what
+makes ligand-level memorisation available as a shortcut ingredient. To test
+whether this recurrence is \emph{required} for the pooled-AUC/ranking
+dissociation, we rebuild BRENDA-200 twice with everything else held fixed ---
+encoders, capacity class, training budget, hard-negative logic, evaluation
+pool construction, seeds --- so that only the split definition changes. In
+the \emph{cold-ligand} split, canonical molecule identities (canonical
+SMILES, the same molecule definition used throughout the leakage audit) are
+partitioned $70/15/15$ at seed 42: no test molecule has a training row,
+while proteins recur as before ($94.5\%$ of test-pair proteins seen in
+training). In the \emph{double-cold} split the two partitions are combined,
+holding out molecules \emph{and} proteins simultaneously; pairs whose axes
+land in different folds are dropped ($46\%$ of rows), leaving 213 test
+pairs. Both splits verify $0.0\%$ test-molecule recurrence against $53.6\%$
+for the canonical split, and every run manifest pins the realised overlap
+fractions of both axes; evaluation refuses to run against a mismatched
+split (Section~\ref{sec:seeds}).
+
+The null baselines behave exactly as the split geometry dictates, and their
+behaviour is itself informative (Tab.~\ref{tab:cold}). Under cold-ligand
+the per-ligand rate prior collapses from $0.915$ to exactly $0.500$ ---
+no test molecule has training rows --- while the molecule-blind protein
+prior, capped at $0.500$ on the canonical split, now carries signal
+($0.655$) because proteins recur: a mirror image of Table~\ref{tab:sources}.
+Under double-cold both priors sit at exactly $0.500$: neither marginal
+contains any information about test labels, so anything a model achieves
+beyond them there cannot come from memorised marginals.
+
+\begin{table}[t]
+\centering
+\caption{Stress-test splits of BRENDA-200 with everything except the split
+definition held fixed: same frozen encoders, capacity class, optimiser,
+training budget, hard-negative logic and pool construction as
+Tables~\ref{tab:phase1}--\ref{tab:ablation}; three seeds per configuration
+(cold-ligand), five for double-cold ($\{11, 202\}$ added because the seed
+spread is widest there). Pooled AUC is computed over each split's full test
+set; \mrr{} on the matched evaluation pool, chance $\approx 0.029$
+(---: degenerate under the tie rule for constant or discrete scorers,
+Methods). The double-cold pool contains six matched positive pairs, so its
+matrix metrics are indicative rather than precise; its full-split columns
+are primary. The canonical column repeats
+Tables~\ref{tab:phase1}--\ref{tab:ablation} for orientation. Regenerable
+from \texttt{null\_baseline\_firstclass\_*.csv} and
+\texttt{cold\_split\_multiseed.csv}.}
+\label{tab:cold}
+\footnotesize
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{l rr rr rr}
+\toprule
+& \multicolumn{2}{c}{Cold-ligand} & \multicolumn{2}{c}{Double-cold} &
+  \multicolumn{2}{c}{Canonical} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+Source & Pooled AUC & \mrr{} & Pooled AUC & \mrr{} & Pooled AUC & \mrr{} \\
+\midrule
+Random baseline         & 0.496           & --- & 0.535           & --- & 0.500           & --- \\
+\nullprior              & 0.655           & --- & 0.500           & --- & 0.500           & --- \\
+Per-ligand rate prior   & 0.500           & --- & 0.500           & --- & 0.915           & --- \\
+\midrule
+BCE control             & 0.850$\pm$0.018 & 0.028$\pm$0.013 & 0.813$\pm$0.010 & 0.025$\pm$0.006 & 0.918$\pm$0.003 & 0.014$\pm$0.002 \\
+\textbf{\method}        & 0.591$\pm$0.041 & \textbf{0.295$\pm$0.064} & 0.573$\pm$0.051 & \textbf{0.092$\pm$0.078} & 0.618$\pm$0.005 & \textbf{0.220$\pm$0.026} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The logic of the three splits is straightforward. On the canonical split a
+sceptic could attribute the pooled-AUC inflation to memorisation of
+recurring ligand identities. Under cold-ligand this channel is closed ---
+no test molecule has a training row --- yet the BCE control still posts
+pooled AUC $0.850 \pm 0.018$ at chance-level ranking (\mrr{} $0.028 \pm
+0.013$; Hit@10 $0.04$): ligand recurrence alone cannot explain the
+dissociation. Under double-cold, neither test molecules nor test proteins
+recur and both molecule-blind marginals sit at exactly $0.500$, yet the
+control still posts pooled AUC $0.813 \pm 0.010$ at chance-level ranking
+(\mrr{} $0.025 \pm 0.006$; Hit@10 $0.00$): the dissociation persists after
+the obvious molecule- and protein-marginal explanations have been removed.
+These results rule out simple ligand or protein marginal memorisation as
+the sole explanation for the residual pooled separation; the remaining
+source is not resolved by the present experiments.
+
+The BCE control still passes pooled AUC on both stress splits while its
+within-molecule ranking stays at chance against a reference of $0.029$.
+This is the strongest form of the diagnosis: the pairwise objective posts
+a pooled value far above every null while failing the task-aligned metric,
+and it does so where the split geometry leaves no memorised marginal to
+ride. What sustains the residual pooled signal is an open question;
+plausible candidates are generalisable similarity structure between unseen
+test entities and their training relatives, and global statistics of the
+role-pure decoy construction. The diagnostic conclusion does not depend on
+resolving it: pooled separation persists where memorisation cannot.
+
+\method{} retains ranking signal on both stress splits, at reduced
+magnitude, and we report the reduction plainly. Under cold-ligand (three
+seeds) it reaches
+\mrr{} $0.295 \pm 0.064$ (control $0.028$, chance $0.029$) and Hit@10
+$0.565 \pm 0.008$. Under double-cold --- where $46\%$ of rows are dropped,
+no identity recurs, and the pool surface shrinks to six positive pairs ---
+its advantage narrows to \mrr{} $0.092 \pm 0.078$ across five seeds versus
+the control's $0.025 \pm 0.006$, with Hit@10 $0.233 \pm 0.253$: still above
+the control, but with overlapping ranges and the widest seed noise we
+observe anywhere. Two readings follow. First, the dissociation is not an
+artefact of ligand recurrence --- it survives that recurrence's removal.
+Second, the ranking objective's advantage does not depend on recurring
+identities either, though it weakens precisely where the training signal is
+thinnest; whether it can be recovered under double-cold conditions (for
+example by re-tuning negative mining for the smaller training set) is left
+open. We keep the canonical protein-stratified split as the main benchmark
+throughout the paper --- it is the setting in which published baselines were
+evaluated --- and present the cold splits as stress tests of the
+explanation, not replacement leaderboards; each split answers a different
+question (target generalisation, molecule generalisation, or both), and the
+diagnostic of Section~\ref{sec:recipe} applies to all of them.
+
 \subsection{The diagnosis and the recipe transfer to seven datasets}
 \label{sec:transfer}
 
@@ -470,22 +671,31 @@ the decoys in the BRENDA-derived corpora are author-generated
 (Section~4.1), so part of each pooled-AUC inflation is a property of this
 benchmark design; the synthetic construction of Section~2.1, which uses no
 decoys at all, carries the metric-side argument to settings where none are
-injected. Each dataset is evaluated on
+injected. The transfer protocol differs from the BRENDA-200 headline
+protocol in two documented ways: the BRENDA-200 headline values rest on
+three seeds, whereas the transfer runs are single-seed (the seed-42
+anchor; supplementary seeds for the three BRENDA+SABIO families exist and
+are discussed in Section~3), and the hard-negative pool is scaled to the
+training-protein count of each dataset (Section~4.3), because the
+BRENDA-200-tuned pool of 50 is meaningless at 3.8--9.5k training proteins.
+Each run's split, pool size and realised overlap fractions are pinned in
+its manifest (Section~4.5), and every row of Table~\ref{tab:seven} is
+regenerable from the committed aggregate tables. Each dataset is evaluated on
 the same instruments as BRENDA-200: a matched 200-protein pool, \mrr{} and
 Hit@K within each molecule, the molecule-blind prior as reference.
 
 \begin{table}[t]
 \centering
 \caption{Seven datasets, each scored with a matched BCE control and
-\method. The control passes pooled AUC everywhere (0.84--0.98) while
-ranking at near-chance \mrr{} (chance $\approx 0.029$): the BRENDA
-dissociation is reproduced on every corpus. \method{} ranks $7$--$25\times$
+\method. The control passes pooled AUC on all seven datasets (0.84--0.98)
+while ranking at near-chance \mrr{} (chance $\approx 0.029$): the BRENDA
+dissociation is reproduced on every corpus tested. \method{} ranks $7$--$25\times$
 better than the control on the catalytic enzyme datasets; on ESP it keeps
 pooled AUC 0.891 while ranking best of all. The two kinase affinity sets
 with no ranking signal in the prior (Davis, KIBA) bound the claim.
 BRENDA+SABIO and ESP rows use pool sizes of roughly half the
-train-protein count (Section~2.4; single seed); Davis/KIBA/BindingDB use the
-default pool of 50.}
+train-protein count (Section~\ref{sec:transfer}; single seed);
+Davis/KIBA/BindingDB use the default pool of 50.}
 \label{tab:seven}
 \footnotesize
 \setlength{\tabcolsep}{3.5pt}
@@ -515,13 +725,14 @@ KIBA                         & BCE control & 453 & 0.856 & 0.035 & $+0.35$ & 0.1
 \end{table}
 
 Four observations follow from Table~\ref{tab:seven}. First, the shortcut
-precondition is universal: the molecule-blind prior's score distribution is
-as concentrated on every dataset as on BRENDA (Gini $\approx 0.995$), so the
-skewed per-protein label distribution that enables the shortcut is not a
-BRENDA artefact. Second, the BCE control exploits it everywhere: pooled AUC
+precondition is not specific to BRENDA-200: the molecule-blind prior's
+score distribution is as concentrated on every dataset tested here as on
+BRENDA (Gini $\approx 0.995$), so the skewed per-protein label distribution
+that enables the shortcut occurs across the tested corpora. Second, the BCE
+control exploits it on every dataset tested: pooled AUC
 $0.84$--$0.98$ at near-chance \mrr{} ($0.014$--$0.098$), exactly the
 dissociation of Section~2.1, now on six corpora beyond BRENDA-200. Third,
-\method\ circumvents it on every catalytic enzyme dataset: \mrr{} $0.228$,
+\method\ circumvents it on each catalytic enzyme dataset tested: \mrr{} $0.228$,
 $0.219$, $0.344$ against control values of $0.029$, $0.030$, $0.014$
 ($7$--$25\times$), with the per-row correlation to the prior between
 $+0.01$ and $-0.06$, an order of magnitude below the control's $+0.09$
@@ -558,7 +769,10 @@ fix, a pool of 4{,}000, was applied to ESP.
 \subsection{A five-point recipe}
 \label{sec:recipe}
 
-The evidence above reduces to five recommendations.
+On the benchmarks studied here, the evidence reduces to five
+recommendations. We recommend the checklist wherever ligand or protein
+marginals may dominate pooled metrics --- enzyme--substrate corpora with
+recurring molecules above all.
 
 \begin{enumerate}[leftmargin=*,itemsep=2pt,topsep=2pt]
   \item \textbf{Run the molecule-blind null before reporting pooled
@@ -587,10 +801,17 @@ The evidence above reduces to five recommendations.
 \section{Discussion}
 \label{sec:discussion}
 
-The central observation of this paper is methodological: on enzyme--substrate
-benchmarks, pooled AUC validates the wrong property. Four published models,
-one of them built on pretrained protein language models, all pass it while
-reproducing the per-protein label marginal in their score structure. On this
+The central observation of this paper is methodological: on the
+enzyme--substrate benchmarks studied here, pooled AUC validates the wrong
+property --- it can be high while ligand-conditional ranking sits at
+chance. We do not claim this holds for every DTI benchmark; on the kinase
+affinity sets (Davis, KIBA) the molecule-blind prior carries no ranking
+signal at all (Section~2.5), so there is no shortcut of the kind diagnosed
+here for pooled AUC to certify. Four published models,
+one of them built on pretrained protein language models, all pass it, and
+three of the four reproduce the per-protein label marginal in their score
+structure (top-ten overlap $54$--$67\%$ with the molecule-blind prior;
+MolTrans $5\%$). On this
 split the protein marginal itself cannot be the source --- a molecule-blind
 protein prior scores exactly $0.500$, chance, because no test protein has
 training rows; what pooled AUC certifies here are molecule-level regularities
@@ -621,18 +842,12 @@ $0.242$--$0.344$ for turnover), so transfer point estimates carry roughly
 $\pm 0.05$ seed noise; on BRENDA-200 itself, extending the two head configs
 to ten seeds widens the full-model spread to $\pm 0.075$
 (Section~\ref{sec:results}), so headline point estimates should be read as
-$\pm 0.05$--$0.08$ rather than $\pm 0.03$. Second, the BRENDA decoy protocol assigns each molecule a
-fixed role: of the 4{,}604 unique ligands, 1{,}417 appear only as documented
-substrates and 3{,}157 only as decoy carriers (99.3\% label-pure), and the
-protein-stratified split holds out proteins, not molecules, so molecule
-identity alone predicts the label wherever a ligand recurs. A linear probe
-on frozen ChemBERTa/ESM2 features reaches test AUC $0.887$ from the ligand
-vector alone ($0.833$ with both blocks), and the per-ligand training-rate
-prior reaches $0.915$ pooled AUC on the full test split---above three of
-the four published baselines. Absolute pooled values on this corpus are
-therefore bounded below by molecular memorisation; \method{} sits at
-$0.618$, and the seven-dataset control comparison is the cleaner
-instrument. Third, the residue-level
+$\pm 0.05$--$0.08$ rather than $\pm 0.03$. Second, the molecule-side
+shortcut quantified in Section~2.1 (role-pure ligands, recurring
+molecules, a ligand-only linear probe at $0.887$ pooled AUC) means
+absolute pooled values on this corpus are bounded below by molecular
+memorisation; \method{} sits at $0.618$, and the seven-dataset control
+comparison is the cleaner instrument. Third, the residue-level
 attention does not find catalytic pockets (it de-weights them), so any
 future pocket-selection scheme should use structural priors (AlphaFold
 structures plus a pocket detector) rather than learned attention.
@@ -640,7 +855,7 @@ structures plus a pocket detector) rather than learned attention.
 What we hope survives this paper is the probe, not the architecture. Any
 DTI model can be checked against the molecule-blind prior in minutes, and
 any dataset can be scored with \mrr{} instead of pooled AUC alone. The
-recipe of Section~2.5 is the cheapest way we found to pass that check: 627k
+recipe of Section~\ref{sec:recipe} is the cheapest way we found to pass that check: 627k
 trainable parameters, a few hours on one GPU per seed, and every ingredient
 is a standard technique from metric learning.
 
@@ -652,20 +867,37 @@ is a standard technique from metric learning.
 \label{sec:data}
 
 BRENDA-200 is the enzyme--substrate corpus used throughout
-Sections~2.1--2.3: a $200\times200$ subset of the BRENDA+SABIO
+Sections~2.1--2.4: a $200\times200$ subset of the BRENDA+SABIO
 enzyme--substrate records (hydrolytic enzymes dominate; 9{,}632 pairs, of
 which 3{,}175 are documented substrates and 6{,}457 are decoys). Each
 positive pair is a molecule recorded as a substrate of the enzyme in BRENDA
 \citep{chang2021brenda} or SABIO-RK \citep{wittig2018sabiork}; the decoys
 are non-substrate pairs (value 0) whose molecules are structurally similar
 to the enzyme's true substrates (median Tanimoto similarity 0.48 to the
-closest one), injected by the project's decoy pipeline. The split is
+closest one), injected by the project's decoy pipeline. The protocol
+assigns each molecule a fixed role: of the 4{,}604 unique ligands, 1{,}417
+appear only as documented substrates and 3{,}157 only as decoy carriers
+(99.3\% label-pure). The split is
 protein-stratified (seed 42, $70/15/15$) so that test proteins never appear
 in training; the test set holds 1404 pairs over 200 unique proteins and 200
 unique molecules, and all matrix metrics are computed on this pool. The
 split is implemented once in \texttt{baselines/adapters/common.py::
 BRENDADataConfig.get\_protein\_split} and reused by every model and every
 diagnostic.
+
+Two stress-test variants of the same corpus hold out molecules as well
+(Section~\ref{sec:cold}). Molecule identity is the canonical SMILES string
+(\texttt{substrate\_smiles\_canon}), the same molecule definition used by
+the leakage audit. The cold-ligand split partitions unique identities
+$70/15/15$ at seed 42; the double-cold split intersects this partition with
+the canonical protein split and drops pairs whose two axes land in different
+folds ($46\%$ of rows). Both are implemented in
+\texttt{BRENDADataConfig.get\_ligand\_split} /
+\texttt{get\_double\_cold\_split}, selected by the configuration key
+\texttt{data.split\_mode}, and every run manifest records the realised
+train/test overlap fractions for both axes alongside the pair counts. The
+evaluation guard of Section~\ref{sec:seeds} applies unchanged: it refuses to
+score a model on a split other than the one it trained on.
 
 The three enzyme-wide datasets are produced by the project's pinned data
 pipeline (the \texttt{reactionDataFiltering} git submodule, fixed commit):
@@ -708,7 +940,12 @@ does not ride the protein marginal.
 \mrr{} is the mean reciprocal rank of the true target protein within each
 test molecule's row of the $200\times200$ matrix (chance $\approx 0.029$
 at 200 candidates); Hit@$K$ is the fraction of test molecules whose true
-target lands in the top-$K$. Ranks count strictly higher-scoring columns,
+target lands in the top-$K$. Averaging is pair-weighted: every positive
+(molecule, protein) pair contributes one reciprocal rank, so molecules with
+several documented substrates weigh proportionally; the molecule-level
+paired bootstrap of Section~\ref{sec:intro} instead averages one value per
+test molecule, with test positives re-derived from the pinned split.
+Ranks count strictly higher-scoring columns,
 so ties are resolved optimistically; trained models' continuous scores make
 this immaterial, but a constant scorer would receive \mrr{} $=1$, which is
 why the prior's ranking metrics are excluded from comparison.
@@ -764,9 +1001,12 @@ binary cross-entropy loss, random batches and the MLP-concat head. The BCE
 auxiliary probe adds a BCE term of weight 0.5 to the margin objective.
 
 Seeds $\{42, 7, 1337\}$ are used for all BRENDA-200 configurations
-(Sections~2.1--2.3); the transfer runs of Section~2.4 report the seed-42
-anchor in Table~3, with supplementary extra seeds (7 and 1337) for the
-three BRENDA+SABIO families. Hardware: one NVIDIA A30 GPU per run, about 1.5\,h per seed for the
+(Sections~2.1--2.4), including the cold-split stress tests of
+Section~\ref{sec:cold}; the double-cold configurations are additionally
+extended to five seeds ($\{11, 202\}$ added, because their seed spread is
+the widest we observe). The transfer runs of Section~\ref{sec:transfer}
+report the seed-42 anchor in Table~3, with supplementary extra seeds (7 and
+1337) for the three BRENDA+SABIO families. Hardware: one NVIDIA A30 GPU per run, about 1.5\,h per seed for the
 default and 4\,h for the residue-level variant.
 
 \subsubsection{Seeds and split pinning}
@@ -806,7 +1046,8 @@ Every training run writes a \texttt{manifest.json} pinning the resolved
 configuration, git commit, library versions, input-data SHA-256 and the
 SHA-256 of the best checkpoint and score matrix. The three-seed means in
 Tables~\ref{tab:phase1}--\ref{tab:ablation} are aggregated by
-\texttt{scripts/aggregate\_multiseed.py} from these manifests. All code,
+\texttt{scripts/aggregate\_multiseed.py}, the stress-split table by
+\texttt{scripts/aggregate\_cold\_splits.py}, all from these manifests. All code,
 configurations and the aggregated result tables are public at
 \url{https://github.com/christophmanitz/rankbind} (paper: \texttt{paper/}).
 The per-run manifests and score matrices that pin the reported numbers are

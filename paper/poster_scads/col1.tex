@@ -18,8 +18,8 @@ training positive rate; \emph{overlap} = Jaccard of the top-ten sets,
 
 {\small Why? Because the cheat sheet does just as well: it picks the same
 favourites, up to two thirds of their top ten, at the same concentration
-($\approx$ 0.995). Pooled AUC certifies the protein, not the pair. We retire it
-as a success gate and rank inside each molecule instead.}
+($\approx$ 0.995). Pooled AUC certifies dataset-level regularities, not the
+pair. We retire it as a success gate and rank inside each molecule instead.}
 
 \vfill
 
@@ -42,11 +42,11 @@ Vertical: ranking AUC within one molecule, chance 0.5.}
 	\midrule
 	\textit{cheat sheet} & n/a & n/a & 1.00 & 0.995 \\
 	\midrule
-	\textbf{RankBind} & 0.634 & \hlb{0.891} & \textbf{0.035} & \textbf{0.787} \\
+	\textbf{RankBind} & 0.618 & \hlb{0.878} & \textbf{0.018} & \textbf{0.798} \\
 	\bottomrule
 \end{tabular}}
-\figcap{Chance is 0.50 for one-molecule AUC; three of four baselines rank
-\emph{below} it. \textit{n} = 30 held-out positives.}
+\figcap{Chance is 0.50 for one-molecule AUC; all four baselines sit within
+0.43--0.53, at or near chance. \textit{n} = 30 held-out positives.}
 
 \vfill
 

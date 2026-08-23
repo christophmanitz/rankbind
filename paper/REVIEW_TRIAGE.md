@@ -29,8 +29,14 @@ Status as of 2026-08-22.
    extension protocol.
 2. **Paired molecule-level bootstrap CIs** (ML #2/#5): DONE 2026-08-22 —
    `paired_molecule_stats.py` rewritten to seed-PAIRED canonical runs;
-   all three seeds' CIs exclude zero (+0.23/+0.39/+0.43 vs control,
-   rb ≥ 0.95 vs prior); CI sentence added to §1 results paragraph.
+   all three seeds' CIs exclude zero (+0.23/+0.20/+0.17 vs control,
+   rb ≥ 0.89 vs prior); CI sentence added to §1 results paragraph.
+   **2026-08-23 correction:** the bootstrap originally built the split
+   from the *training* seed (evaluating seeds 7/1337 on a non-canonical
+   split whose test proteins the model had trained on); the script now
+   reads `data.split_seed=42` from the manifest and re-derives test
+   positives from the pinned split. Corrected CIs: +0.23 [+0.16,+0.32],
+   +0.20 [+0.11,+0.31], +0.17 [+0.11,+0.23] — all still exclude zero.
 3. **Double-cold holdout** (SCIREP #6, JCIM falsification): molecules AND
    proteins unseen — the decisive test whether RankBind learns interaction
    vs molecule identity. New run set, medium cost.

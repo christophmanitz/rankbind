@@ -23,14 +23,14 @@
 	\typeout{RANKBIND-PROBE stat = \the\probelen}%
 }
 \begin{document}
-\statprobe{0.326\,$\pm$\,0.072}{ranking score}{How high a molecule's true
+\statprobe{0.220\,$\pm$\,0.026}{ranking score}{How high a molecule's true
 	targets land. 1.0 = always first, 0.029 = guessing. Ordinary training on the
-	same model: 0.015.}
-\statprobe{0.000}{overlap with the cheat sheet}{Favourite proteins shared with a
+	same model: 0.014.}
+\statprobe{0.018}{overlap with the cheat sheet}{Favourite proteins shared with a
 	baseline that never sees the molecule. Published models: 0.05--0.67.}
-\statprobe{0.95 $\rightarrow$ 0.63}{pooled AUC, given up}{One score over all
+\statprobe{0.92 $\rightarrow$ 0.62}{pooled AUC, given up}{One score over all
 	pairs at once, and exactly the score the shortcut wins.}
-\statprobe{7 datasets}{the problem is everywhere}{The same test on seven corpora:
+\statprobe{7 datasets}{the problem repeats}{The same test on seven corpora:
 	ordinary training fails the ranking question every time.}
 \measure{band}{\headlineband}
 \measure{col1}{\input{col1.tex}}

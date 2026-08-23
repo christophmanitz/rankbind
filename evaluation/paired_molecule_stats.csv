@@ -1,7 +1,7 @@
 comparison,n_molecules,mean_a,mean_b,wilcoxon_p,rank_biserial,boot_mean_diff,ci95_lo,ci95_hi,sd_diff
 RankBind default s42(model) vs BCE control s42(model),30,0.2474,0.0126,1.30385160446167e-08,0.983,0.2348,0.1592,0.3161,0.2232
-RankBind default s7(model) vs BCE control s7(model),34,0.4043,0.0152,1.1641532182693481e-10,1.0,0.3892,0.2678,0.5173,0.3779
-RankBind default s1337(model) vs BCE control s1337(model),48,0.5027,0.0771,2.3907038446621448e-09,1.0,0.4256,0.3172,0.534,0.3875
+RankBind default s7(model) vs BCE control s7(model),30,0.2178,0.0171,4.72646880091332e-06,0.957,0.2008,0.1114,0.3122,0.283
+RankBind default s1337(model) vs BCE control s1337(model),30,0.1816,0.0138,2.551823854446411e-07,0.935,0.1678,0.1127,0.2258,0.1588
 RankBind default s42(model) vs RankBind default s42(prior),30,0.2474,0.0208,5.5076212135046175e-06,0.948,0.2266,0.1512,0.3085,0.2243
-RankBind default s7(model) vs RankBind default s7(prior),34,0.4043,0.0149,3.4248377417626693e-07,1.0,0.3894,0.2647,0.5197,0.3836
-RankBind default s1337(model) vs RankBind default s1337(prior),48,0.5027,0.0167,1.3872784831257646e-09,0.997,0.486,0.3656,0.6045,0.4227
+RankBind default s7(model) vs RankBind default s7(prior),30,0.2178,0.0208,7.614550332626942e-06,0.935,0.197,0.1074,0.3072,0.2821
+RankBind default s1337(model) vs RankBind default s1337(prior),30,0.1816,0.0208,1.9431942034686224e-05,0.892,0.1607,0.1052,0.2185,0.1599

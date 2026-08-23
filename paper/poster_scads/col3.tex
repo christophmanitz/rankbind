@@ -3,7 +3,8 @@
 \lead{Every dataset is scored against a \emph{matched} control: same encoders,
 same split, ordinary BCE training. It repeats the pattern on all seven,
 \hlw{pooled AUC 0.84--0.98} at near-chance ranking. The prior is as skewed
-everywhere (concentration $\approx$ 0.995), so this is no BRENDA artefact.}
+on all seven (concentration $\approx$ 0.995), so this is not specific to
+BRENDA-200.}
 
 \vfill
 
@@ -27,7 +28,7 @@ everywhere (concentration $\approx$ 0.995), so this is no BRENDA artefact.}
 \end{tabular}}
 \figcap{\textbf{Scale the hard-negative pool with the protein count.} A fixed
 pool of 50 covers a quarter of BRENDA-200's training proteins but
-0.5--1.9\% of the train split: the drop was a coverage artefact, not signal
+less than 2\% of the train split: the drop was a coverage artefact, not signal
 loss. Single seed.}
 
 \vfill
@@ -45,5 +46,5 @@ refutation.}}
 
 \input{arch.tex}
 \figcap{\textbf{What is trained is small.} Both encoders stay frozen; only the
-two projectors and the head are learned. Section 2's three ingredients shape
+two projectors and the head are learned. Section 2's four ingredients shape
 how batches are formed and scored, not this graph.}

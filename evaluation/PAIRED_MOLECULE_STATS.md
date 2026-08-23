@@ -11,11 +11,11 @@ Per-seed uncertainty uses the honest true-split re-evaluation
 | comparison | n | mean A | mean B | dMRR | 95% CI | Wilcoxon p | rank-biserial |
 |---|---:|---:|---:|---:|---|---|---:|
 | RankBind default s42(model) vs BCE control s42(model) | 30 | 0.2474 | 0.0126 | +0.2348 | [+0.1592, +0.3161] | 1.30e-08 | 0.983 |
-| RankBind default s7(model) vs BCE control s7(model) | 34 | 0.4043 | 0.0152 | +0.3892 | [+0.2678, +0.5173] | 1.16e-10 | 1.0 |
-| RankBind default s1337(model) vs BCE control s1337(model) | 48 | 0.5027 | 0.0771 | +0.4256 | [+0.3172, +0.5340] | 2.39e-09 | 1.0 |
+| RankBind default s7(model) vs BCE control s7(model) | 30 | 0.2178 | 0.0171 | +0.2008 | [+0.1114, +0.3122] | 4.73e-06 | 0.957 |
+| RankBind default s1337(model) vs BCE control s1337(model) | 30 | 0.1816 | 0.0138 | +0.1678 | [+0.1127, +0.2258] | 2.55e-07 | 0.935 |
 | RankBind default s42(model) vs RankBind default s42(prior) | 30 | 0.2474 | 0.0208 | +0.2266 | [+0.1512, +0.3085] | 5.51e-06 | 0.948 |
-| RankBind default s7(model) vs RankBind default s7(prior) | 34 | 0.4043 | 0.0149 | +0.3894 | [+0.2647, +0.5197] | 3.42e-07 | 1.0 |
-| RankBind default s1337(model) vs RankBind default s1337(prior) | 48 | 0.5027 | 0.0167 | +0.4860 | [+0.3656, +0.6045] | 1.39e-09 | 0.997 |
+| RankBind default s7(model) vs RankBind default s7(prior) | 30 | 0.2178 | 0.0208 | +0.1970 | [+0.1074, +0.3072] | 7.61e-06 | 0.935 |
+| RankBind default s1337(model) vs RankBind default s1337(prior) | 30 | 0.1816 | 0.0208 | +0.1607 | [+0.1052, +0.2185] | 1.94e-05 | 0.892 |
 
 ## A7 per-seed uncertainty (matrix metrics, honest true-split eval)
 
@@ -38,6 +38,8 @@ Per-seed uncertainty uses the honest true-split re-evaluation
   clean April runs, s7/s1337 the August v5 sweep). The candidate pool
   and axes are identical, so molecule-level pairing is well defined;
   each side's positives come from its own true split.
+- All runs are evaluated on the PINNED canonical split
+  (data.split_seed=42), not on a split drawn from the training seed.
 - Prior baselines are deterministic given the split; their molecule-
   level MRR is the chance-adjusted reference (expected MRR of random
   ranking with m_pos positives among 200 candidates is ~H_200/m/…;
