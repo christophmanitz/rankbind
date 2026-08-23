@@ -313,8 +313,11 @@ ordered by \mrr{}.
 The top row is a matched-capacity BCE control with the same encoders and
 split. Removing the margin loss collapses \mrr{} by $11\times$ and pooled
 AUC rebounds to $0.91$: the shortcut returns. Removing the balanced sampler
-costs $33\%$. The MLP head trails the bilinear head on the mean and has
-$3.4\times$ wider seed spread. The last row re-selects checkpoints by
+costs $33\%$. The MLP row is the matched-capacity control. A ten-seed
+extension of the two head configs (run to test the reliability reading of
+the three-seed spread gap) shows overlapping distributions --- bilinear
+$0.182\pm0.075$ versus MLP $0.143\pm0.097$ --- so the head choice moves the
+mean, not reliability. The last row re-selects checkpoints by
 validation matrix \mrr{} instead of validation pooled AUC (selection-rule
 sensitivity check).}
 \label{tab:ablation}
@@ -340,11 +343,15 @@ Table~\ref{tab:ablation} orders the ingredients by what they buy. The margin
 loss is the dominant contribution: without it \mrr{} falls from $0.220$ to
 $0.020$ and pooled AUC jumps back to $0.91$ (the model stops ranking and
 re-learns the protein marginal). The balanced sampler is a secondary positive
-($-33\%$ when removed). The bilinear head does not win on the mean
-($0.140$ for MLP versus $0.220$ for bilinear, with overlapping seed ranges)
-but cuts
-the seed-to-seed standard deviation from $0.087$ to $0.026$; we keep it for
-stability, not for a mean win. Hard-negative mining, which is part of the
+($-33\%$ when removed). The bilinear head wins on the mean ($0.220$
+versus $0.140$, overlapping three-seed ranges). Extending both head configs
+to ten seeds --- run precisely to test whether that gap reflects a
+reliability advantage --- dissolves the stability reading: \mrr{}
+$0.182\pm0.075$ for bilinear versus $0.143\pm0.097$ for MLP, a seed-spread
+ratio of only $1.3\times$. We therefore claim no stability advantage; we
+keep the bilinear form for the invariance of its interaction function
+(Section~\ref{sec:simplearch}) and its higher mean.
+Hard-negative mining, which is part of the
 default rather than an ablation, lifts \mrr{} from $0.201$ to $0.247$ on the
 shared seed-42 anchor ($+23\%$; single-seed comparison).
 
@@ -592,8 +599,10 @@ not a better encoder or a bigger
 dataset; it is an evaluation change (rank inside each molecule) and a
 training change (optimise that ranking directly). \method{} is the concrete
 instance of the latter, and its ablation shows the mechanism: the margin
-loss is what keeps the model honest, the balanced sampler and hard-negative
-mining stabilise it, and the bilinear head buys seed-to-seed stability.
+loss is what keeps the model honest, and the balanced sampler and
+hard-negative mining support it. The bilinear head is kept for its
+invariant interaction form, not because it trains more reliably
+(Section~\ref{sec:method}).
 
 The cost deserves to be stated plainly. On BRENDA-200, relative to the BCE
 control, \method{} trades pooled AUC down from $0.92$ to $0.62$ while \mrr{}
@@ -609,7 +618,10 @@ protocol exist for the three BRENDA+SABIO families and show substantial
 seed spread (matrix MRR ranges $0.199$--$0.280$ for kcat/$K_M$,
 $0.166$--$0.219$ for $K_M$,
 $0.242$--$0.344$ for turnover), so transfer point estimates carry roughly
-$\pm 0.05$ seed noise; the BRENDA-200 headline is three-seed throughout. Second, the BRENDA decoy protocol assigns each molecule a
+$\pm 0.05$ seed noise; on BRENDA-200 itself, extending the two head configs
+to ten seeds widens the full-model spread to $\pm 0.075$
+(Section~\ref{sec:results}), so headline point estimates should be read as
+$\pm 0.05$--$0.08$ rather than $\pm 0.03$. Second, the BRENDA decoy protocol assigns each molecule a
 fixed role: of the 4{,}604 unique ligands, 1{,}417 appear only as documented
 substrates and 3{,}157 only as decoy carriers (99.3\% label-pure), and the
 protein-stratified split holds out proteins, not molecules, so molecule
@@ -763,7 +775,11 @@ default and 4\,h for the residue-level variant.
 The protein-stratified train/val/test split is drawn once with a dedicated
 random seed (42) that is independent of the training seed; training seeds
 $\{42, 7, 1337\}$ vary only weight initialisation, batch shuffling and
-negative sampling. Evaluation rebuilds the split from the recorded
+negative sampling. For the head comparison of Section~2.3 both the bilinear
+and MLP configurations were additionally extended to ten seeds
+($\{1, 2, 3, 5, 6, 8, 11\}$ added); all other rows keep the registered
+three-seed protocol, and Table~2 reports matched three-seed values for
+comparability across rows. Evaluation rebuilds the split from the recorded
 configuration and refuses to run if it does not match the one stored in a
 run's manifest, which rules out scoring a model on pairs it trained on ---
 an error mode we caught in an internal audit of an earlier sweep and

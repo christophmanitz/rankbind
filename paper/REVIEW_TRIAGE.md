@@ -18,13 +18,15 @@ Status as of 2026-08-22.
 
 ## Deferred — needs new experiments or cluster time
 
-1. **10-seed head comparison** (ML #1): IN FLIGHT 2026-08-22 — 14 SLURM
-   runs submitted (configs `default` + `abl_no_bilinear`, seeds
-   {1,2,3,5,6,8,11}, tag `v6`, n=10 per head incl. existing 3).
-   `aggregate_multiseed.py` extended (generic `_s<seed>` suffix,
-   SWEEP_SEEDS, head-stability SD-ratio printout). When landed:
-   `python scripts/aggregate_multiseed.py`, then update the bilinear
-   stability sentences (§1 intro list, §2.3) with the n=10 SD ratio.
+1. **10-seed head comparison** (ML #1): DONE 2026-08-23 — 14 runs landed
+   (tag `v6`, n=10 per head). **Outcome: the stability thesis is
+   refuted.** bilinear 0.182±0.075 vs MLP 0.143±0.097, SD ratio only
+   1.29× (was 3.4× at n=3 — the original seeds were lucky). Mean
+   advantage persists (+0.04). Paper updated honestly: Table 2 caption +
+   §2.3 claim the reliability reading dissolved; bilinear kept for
+   invariance + mean; Discussion sentence rewritten; limitations now
+   quote ±0.05–0.08 seed noise; Methods sec:seeds documents the
+   extension protocol.
 2. **Paired molecule-level bootstrap CIs** (ML #2/#5): DONE 2026-08-22 —
    `paired_molecule_stats.py` rewritten to seed-PAIRED canonical runs;
    all three seeds' CIs exclude zero (+0.23/+0.39/+0.43 vs control,
