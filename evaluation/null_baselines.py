@@ -33,11 +33,23 @@ from attractor_diagnosis import (
 )
 
 
-def build_null_matrices(config: BRENDADataConfig, n_matrix: int = 200, seed: int = 42):
-    """Build the three null score matrices over the same geometry as trained models."""
+def build_null_matrices(config: BRENDADataConfig, n_matrix: int = 200, seed: int = 42,
+                        split_mode: str = 'protein'):
+    """Build the three null score matrices over the same geometry as trained models.
+
+    split_mode selects which fold counts as "training" for the priors:
+      'protein'     canonical protein-stratified split (default, backward compatible)
+      'ligand'      ligand-disjoint cold-ligand split (skill §5)
+      'double_cold' product partition, neither axis recurs (skill §5/§7)
+    """
     pairs = config.load_pairs()
     seqs = config.load_sequences()
-    train_idx, _, _ = config.get_protein_split()
+    if split_mode == 'ligand':
+        train_idx, _, _ = config.get_ligand_split()
+    elif split_mode == 'double_cold':
+        train_idx, _, _ = config.get_double_cold_split()
+    else:
+        train_idx, _, _ = config.get_protein_split()
 
     # Same sampling as train_original.py:
     proteins = list(seqs.keys())[:n_matrix]

@@ -636,6 +636,12 @@ def prepare_frames(config_dict: dict) -> tuple:
     elif split_mode == "native":
         # Benchmark's own published split (e.g. ESP phylo test vs Kroll).
         train_idx, val_idx, test_idx = bconfig.get_native_split()
+    elif split_mode == "ligand":
+        # Cold-ligand stress test — ligand-disjoint (skill §5/§6).
+        train_idx, val_idx, test_idx = bconfig.get_ligand_split()
+    elif split_mode == "double_cold":
+        # Cold-protein AND cold-ligand product partition (skill §5/§7).
+        train_idx, val_idx, test_idx = bconfig.get_double_cold_split()
     else:
         train_idx, val_idx, test_idx = bconfig.get_protein_split()
     train_idx = set(train_idx); val_idx = set(val_idx); test_idx = set(test_idx)
@@ -648,7 +654,7 @@ def prepare_frames(config_dict: dict) -> tuple:
 
 def build_datasets(config_dict: dict, chemberta_cache_dir: Path) -> tuple:
     """Return (train_ds, val_ds, test_ds, split_stats)."""
-    train_df, val_df, test_df, sequences, _ = prepare_frames(config_dict)
+    train_df, val_df, test_df, sequences, bconfig = prepare_frames(config_dict)
     esm2_dir = PROJECT_ROOT / config_dict["data"]["esm2_dir"]
     protein_encoder = config_dict["model"].get("protein_encoder", "mean_pool")
     max_residues = config_dict["model"].get("max_residues", 1024)
@@ -700,4 +706,18 @@ def build_datasets(config_dict: dict, chemberta_cache_dir: Path) -> tuple:
         "n_val_positives":   int(val_df["label"].sum()),
         "n_test_positives":  int(test_df["label"].sum()),
     }
+    # Cold-split provenance (skill §5-§8): pin the leakage structure of the
+    # split every run actually trained on. Canon identity = leakage_audit L3.
+    canon = bconfig.load_canon_smiles()
+    for name, part in (("train", train_df), ("val", val_df), ("test", test_df)):
+        if len(part):
+            split_stats[f"n_{name}_ligands"] = int(
+                part["substrate_smiles"].map(lambda s: canon.get(s, s)).nunique())
+    tr_ligs = set(train_df["substrate_smiles"].map(lambda s: canon.get(s, s)))
+    te_ligs = set(test_df["substrate_smiles"].map(lambda s: canon.get(s, s)))
+    split_stats["test_lig_in_train_frac"] = round(
+        len(te_ligs & tr_ligs) / max(len(te_ligs), 1), 4)
+    split_stats["test_prot_in_train_frac"] = round(
+        len(set(test_df["uniprot"]) & set(train_df["uniprot"]))
+        / max(int(test_df["uniprot"].nunique()), 1), 4)
     return (*datasets, split_stats)

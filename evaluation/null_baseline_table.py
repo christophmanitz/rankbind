@@ -34,6 +34,7 @@ Known construction facts this table verifies:
 Writes NULL_BASELINE.md + null_baseline_firstclass.csv.
 """
 
+import argparse
 import os
 import sys
 
@@ -76,18 +77,40 @@ def tie_aware_matrix_metrics(M, lig_list, prot_list, pos_pairs, seed=42):
             "hit_at_10": float((ranks < 10).mean())}
 
 
+def get_split_indices(config: BRENDADataConfig, split_mode: str) -> tuple:
+    """Dispatch on split_mode — mirrors v5_rankbind/data.py::prepare_frames."""
+    if split_mode == "ligand":
+        return config.get_ligand_split()
+    if split_mode == "double_cold":
+        return config.get_double_cold_split()
+    if split_mode != "protein":
+        raise ValueError(f"Unknown split_mode={split_mode!r}")
+    return config.get_protein_split()
+
+
 def main():
-    config = BRENDADataConfig()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--split", default="protein",
+                    choices=["protein", "ligand", "double_cold"])
+    ap.add_argument("--seed", type=int, default=42)
+    args = ap.parse_args()
+    split_mode = args.split
+    # Legacy filenames stay unsuffixed for the canonical protein split so all
+    # existing references (paper, skill docs) keep resolving.
+    suffix = "" if split_mode == "protein" else f"_{split_mode}"
+
+    config = BRENDADataConfig(seed=args.seed)
     pairs = config.load_pairs()
     seqs = config.load_sequences()
-    tr_i, va_i, te_i = config.get_protein_split()
+    tr_i, va_i, te_i = get_split_indices(config, split_mode)
 
     proteins = list(seqs.keys())[:200]
     smiles_list = pairs["substrate_smiles"].unique().tolist()[:200]
 
     # null matrices over identical axes (reuse Phase-1 builder)
     from null_baselines import build_null_matrices
-    matrices, _ = build_null_matrices(config, n_matrix=200, seed=42)
+    matrices, _ = build_null_matrices(config, n_matrix=200, seed=args.seed,
+                                      split_mode=split_mode)
 
     ax_s, ax_p = set(smiles_list), set(proteins)
     te_df = pairs[pairs["idx"].isin(set(te_i))]
@@ -151,12 +174,13 @@ def main():
               f"Gini {gini:.3f}")
 
     tab = pd.DataFrame(rows)
-    tab.to_csv(os.path.join(_HERE, "null_baseline_firstclass.csv"), index=False)
+    tab.to_csv(os.path.join(_HERE, f"null_baseline_firstclass{suffix}.csv"), index=False)
 
     r = {row["null"]: row for row in rows}
     md = [
-        "# NULL_BASELINE.md — skill item A10: first-class null baselines",
+        "# NULL_BASELINE" + suffix.upper() + ".md — first-class null baselines",
         "",
+        f"Split: **{split_mode}** (seed {args.seed}). "
         "BRENDA-200 canonical pool (first 200 proteins x first 200 unique",
         "SMILES), held-out test split, identical axes to every model run.",
         "",
@@ -165,6 +189,20 @@ def main():
         f"full test split: **{len(te_df)}** pairs (pos-rate "
         f"{y_full.mean():.3f}). Unique positive pairs matched for ranking:",
         f"{len(pos_pairs)}.",
+    ]
+    n_pool_neg = int((labels == 0).sum())
+    if n_pool_neg == 0:
+        md.append(
+            f"NOTE: the 200x200 pool subset contains {len(sub)} test pairs, "
+            f"ALL positive ({n_pool_neg} negatives) — pooled AUC is undefined "
+            "(nan) on the pool surface for every scorer; the full-split "
+            "column is the informative surface under this split.")
+    elif n_pool_neg < 10:
+        md.append(
+            f"NOTE: only {n_pool_neg} negatives fall inside the pool subset; "
+            "pool-surface AUC/MRR are high-variance there — read the "
+            "full-split column first.")
+    md += [
         "",
         "| null | AUC pool | AUC full split | MRR raw | MRR tie-aware "
         "| H@5 tie | H@10 tie | Gini | Jac-top10 vs prot_prior |",
@@ -180,38 +218,72 @@ def main():
             f"| {w['jaccard_top10_vs_prot_prior']:.2f} |")
 
     pp, lp, rd = r["null_prot_prior"], r["null_lig_prior"], r["null_random"]
+    canon = config.load_canon_smiles()
+    key = lambda col: col.map(lambda s: canon.get(s, s))          # noqa: E731
+    tr_ligs = set(key(tr_df["substrate_smiles"]))
+    te_ligs = set(key(te_df["substrate_smiles"]))
+    tr_prots = set(tr_df["uniprot"])
+    te_prots = set(te_df["uniprot"])
+    lig_rec = len(te_ligs & tr_ligs) / max(len(te_ligs), 1)
+    prot_rec = len(te_prots & tr_prots) / max(len(te_prots), 1)
     md += [
         "",
         "## Reading",
         "",
+        f"Split structure: {prot_rec:.1%} of test PROTEINS and "
+        f"{lig_rec:.1%} of test LIGANDS (canonical identity) also occur in "
+        f"train.",
+        "",
         f"**Chance reference is the random row itself**, not the analytic",
-        f"single-positive constant: with ~1-2 positives per row, empirical",
-        f"random performance is MRR {rd['mrr_tie_aware']:.3f}, H@10 ",
-        f"{rd['hit_at_10_tie_aware']:.3f}, pooled AUC "
-        f"{rd['pooled_auc_test_pool']:.3f}/{rd['pooled_auc_test_full_split']:.3f}.",
-        "",
-        "**Protein prior cannot reproduce pooled performance here.**",
-        "null_prot_prior reaches pooled AUC **0.500 exactly — by",
-        "CONSTRUCTION**: the split is protein-disjoint, no test protein has",
-        "training rows, so every test pair receives the same global-rate",
-        "fallback (verified on both the pool-restricted and full-split",
-        "surface). Any model beating this must generalise beyond train",
-        "prevalence; the models' global AUC range 0.63-0.95 does.",
-        "",
-        "**Molecule-side prior transfer (quantifying the A18 finding).** On",
-        f"the FULL test split, null_lig_prior reaches pooled AUC",
-        f"**{lp['pooled_auc_test_full_split']:.3f}**: per-ligand train rates",
-        "transfer across the protein split because molecules are shared and",
-        "~99% of ligands have a fixed role under the decoy protocol",
-        "(DECOY_LEAKAGE_AUDIT.md). Molecular memory alone reproduces a",
-        "large share of the trained models' global-AUC range without any",
-        "interaction learning. Context: Phase-1 baselines score global AUC",
-        "DrugBAN 0.954 / MolTrans 0.937 / GraphDTA 0.869 / GEMS 0.633, and",
-        "RankBind v4 0.634 +/- 0.010 - i.e. two of four deep baselines sit",
-        "at or below the molecule-prior line, and RankBind deliberately",
-        "trades global AUC away. (On the 36-pair pool subset the estimate",
-        f"is noisy: only {int((labels == 0).sum())} negatives -> "
-        f"{lp['pooled_auc_test_pool']:.3f}.)",
+        f"single-positive constant: empirical random performance here is",
+        f"MRR {rd['mrr_tie_aware']:.3f}, H@10 {rd['hit_at_10_tie_aware']:.3f},"
+        f" pooled AUC {rd['pooled_auc_test_pool']:.3f}/"
+        f"{rd['pooled_auc_test_full_split']:.3f}.",
+    ]
+    if split_mode == "protein":
+        md += [
+            "",
+            "**Protein prior cannot reproduce pooled performance on the",
+            "protein-disjoint split.** null_prot_prior reaches pooled AUC",
+            "**0.500 exactly — by CONSTRUCTION**: no test protein has",
+            "training rows, so every test pair receives the same",
+            "global-rate fallback (verified on both surfaces). Any model",
+            "beating this must generalise beyond train prevalence.",
+            "",
+            "**Molecule-side prior transfer.** On the FULL test split,",
+            f"null_lig_prior reaches pooled AUC",
+            f"**{lp['pooled_auc_test_full_split']:.3f}**: per-ligand train",
+            "rates transfer across the protein split because molecules are",
+            "shared and ~99% of ligands have a fixed role under the decoy",
+            "protocol (DECOY_LEAKAGE_AUDIT.md). Molecular memory alone",
+            "reproduces a large share of the trained models' global-AUC",
+            "range without any interaction learning.",
+        ]
+    elif split_mode == "ligand":
+        md += [
+            "",
+            "**Cold-ligand mirror image (skill §6).** With ligands",
+            "disjoint, null_lig_prior falls back to the global training",
+            f"rate for EVERY test pair: pooled AUC",
+            f"{lp['pooled_auc_test_full_split']:.3f} — the molecule-side",
+            "shortcut is structurally unavailable. Conversely",
+            "null_prot_prior now carries signal:",
+            f"pooled AUC **{pp['pooled_auc_test_full_split']:.3f}**",
+            f"({prot_rec:.0%} of test proteins recur, so their train",
+            "prevalence transfers). Under cold-ligand evaluation the",
+            "dominant residual shortcut is the protein marginal.",
+        ]
+    else:
+        md += [
+            "",
+            "**Double-cold (skill §5/§7).** Neither axis recurs across the",
+            "split, so BOTH priors collapse to the global-rate fallback:",
+            f"prot_prior pooled AUC {pp['pooled_auc_test_full_split']:.3f},",
+            f"lig_prior {lp['pooled_auc_test_full_split']:.3f}. Any pooled",
+            "AUC above chance under this split must come from genuine",
+            "ligand-protein generalisation.",
+        ]
+    md += [
         "",
         "**Tie artefacts matter for degenerate scorers.** lig_prior is",
         "constant along each row; its raw matrix MRR "
@@ -219,31 +291,21 @@ def main():
         "is a strict-greater-counting artefact (every column 'rank 0',",
         "H@K = 1.0). Tie-aware MRR is "
         f"{lp['mrr_tie_aware']:.3f}: a per-ligand",
-        "constant carries zero within-row ranking information. Raw numbers",
-        "are kept only for comparability with earlier tables that share the",
-        "convention.",
+        "constant carries zero within-row ranking information.",
         "",
         f"prot_prior matrix structure: tie-aware MRR "
-        f"{pp['mrr_tie_aware']:.3f}, below its own random reference - its",
-        "informative columns are the train-seen proteins while all test",
-        "positives sit on fallback-scored unseen columns. Its Gini 0.995",
+        f"{pp['mrr_tie_aware']:.3f}; its Gini {pp['gini']:.3f}",
         "matches every trained Phase-1 model: Gini reflects data geometry,",
         "not learned pathology (Phase-1 pivot).",
         "",
-        "Reference (models, same pool/test positives): RankBind v4 default",
-        "matrix MRR 0.247 (seed 42) / 0.326 +/- 0.072 (3 seeds); BCE control",
-        "gAUC 0.92 at matrix MRR ~0.01. See phase2_rankbind_multiseed.csv.",
-        "",
-        "**Headline answer:** on BRENDA-200, protein-prevalence information",
-        "alone reproduces NONE of the models' pooled-AUC advantage (hard cap",
-        "at 0.500 on this split), while molecule-side role memorisation",
-        "reproduces much of it - the shortcut critique applies to both",
-        "axes, with the molecule axis dominant under the current decoy",
-        "protocol. Ligand-conditional matrix metrics are the appropriate",
-        "primary instruments, as adopted.",
+        "**Headline answer:** the informative nulls differ BY SPLIT —",
+        "report them next to every model number (skill §8). A null's lack",
+        "of signal on a given split is itself a result.",
     ]
-    open(os.path.join(_HERE, "NULL_BASELINE.md"), "w").write("\n".join(md) + "\n")
-    print("[null-table] wrote NULL_BASELINE.md + null_baseline_firstclass.csv")
+    open(os.path.join(_HERE, f"NULL_BASELINE{suffix}.md"), "w").write(
+        "\n".join(md) + "\n")
+    print(f"[null-table] wrote NULL_BASELINE{suffix}.md + "
+          f"null_baseline_firstclass{suffix}.csv")
 
 
 if __name__ == "__main__":

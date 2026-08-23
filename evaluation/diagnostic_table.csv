@@ -1,0 +1,8 @@
+source,sees_lig,sees_prot,pooled_auc,matrix_mrr,jac_vs_protprior,n,note
+Random baseline,no,no,0.4996,0.0722,0.023,,uniform noise
+Protein-only prior (molecule-blind),no,yes,0.5,0.0131,1.0,,per-protein train positive rate
+Ligand-only prior (train-rate),yes,no,0.9146,0.019,0.0,,per-ligand train rate; constant along each row
+"Ligand-only probe (frozen ChemBERTa, linear)",yes,no,0.8874,,,,cannot rank proteins within a ligand by construction (ligand-only score)
+"Ligand+protein probe (both blocks, linear)",yes,yes,0.8329,0.0291,0.053,,chance MRR = 1/200 ~ 0.029
+BCE control (pairwise objective),yes,yes,0.9179681768158474,0.0140967151108571,0.6744366744366744,3,"+/-SD pooled 0.003, MRR 0.0020"
+RankBind (within-ligand margin + hard negs),yes,yes,0.6197937683418929,0.1817736576735487,0.0269005847953216,10,"+/-SD pooled 0.025, MRR 0.0751"
