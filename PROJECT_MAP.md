@@ -54,7 +54,7 @@ Read this as a chain; every later piece exists because of the earlier one.
    prepared and run.
 
 Phases 3 and 5 in the old plan were renumbered; the **paper**
-(`paper/main.tex`) is the authoritative narrative now, not the old phase
+(`paper/scirep/main.tex`) is the authoritative narrative now, not the old phase
 numbers.
 
 ---

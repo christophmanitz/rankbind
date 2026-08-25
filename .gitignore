@@ -1,3 +1,7 @@
+# --- Paper & session notes (not part of the repo) ------------------------
+paper/
+CLAUDE.md
+
 # --- Data, models, artefacts (huge, regeneratable, not source) -----------
 data/
 results/
@@ -38,37 +42,6 @@ dist/
 
 # --- Claude Code session state -------------------------------------------
 .claude/
-
-# --- Paper build artefacts ------------------------------------------------
-paper/*.pdf
-paper/*.aux
-paper/*.bbl
-paper/*.blg
-paper/*.log
-paper/*.out
-paper/*.toc
-paper/*.synctex.gz
-paper/*.fls
-paper/*.fdb_latexmk
-paper/_build/
-paper/**/*.aux
-paper/**/*.bbl
-paper/**/*.blg
-paper/**/*.log
-paper/**/*.out
-paper/**/*.toc
-paper/**/*.fls
-paper/**/*.fdb_latexmk
-paper/**/main.pdf
-paper/**/main.synctex.gz
-paper/**/probe.log
-paper/**/build_pass*.log
-paper/**/preview.png
-paper/**/probe.pdf
-paper/p1_antishortcut/main.pdf
-paper/p2_deltafield/main.pdf
-paper/poster_scads/poster_rankbind.pdf
-paper/figures/fig_v5_model_diagram (Copy).png
 
 # --- Scratch / temp -------------------------------------------------------
 tmp/

@@ -1,8 +1,0 @@
-model,gini_attractor,is_null
-GraphDTA,0.9950000000000001,False
-MolTrans,0.9865000000000002,False
-DrugBAN,0.9949000000000001,False
-GEMS,0.9950000000000001,False
-RankBind,0.7871000000000001,False
-Null: prot_prior,0.9950000000000001,True
-Null: random,0.5088000000000004,True

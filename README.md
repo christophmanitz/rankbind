@@ -3,9 +3,10 @@
 Research repository for *RankBind: Protein-Invariant Contrastive Learning
 for Ligand-Conditional DTI* (working title).
 
-The paper draft (`paper/main.tex`, `paper/paper.md`) is the canonical
-description of the work; this README is just a navigational index. Every
-numerical result in the paper is reproducible end-to-end from this
+The paper draft (`paper/scirep/main.tex`, Scientific Reports; `paper/jcim/`
+for the JCIM version) is the canonical description of the work; the long
+version lives in `paper/archive/`. This README is just a navigational index.
+Every numerical result in the paper is reproducible end-to-end from this
 repository at the current commit, see `REPRODUCIBILITY.md` for the
 exact commands.
 
@@ -169,7 +170,9 @@ against an old submodule and may see weird import or path errors.
 
 | File | What it is |
 |------|------------|
-| [`paper/main.tex`](paper/main.tex), [`paper/paper.md`](paper/paper.md) | The paper draft. |
+| [`paper/scirep/main.tex`](paper/scirep/main.tex) | The Scientific Reports manuscript (main). |
+| [`paper/jcim/main.tex`](paper/jcim/main.tex) | The JCIM-formatted version. |
+| [`paper/archive/main.tex`](paper/archive/main.tex), [`paper/archive/paper.md`](paper/archive/paper.md) | Long-form evidence appendix (historical). |
 | [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md) | Per-result regeneration commands. |
 | [`CLAUDE.md`](CLAUDE.md) | Live status + do/don't list. Read first if continuing a paused session. |
 | [`docs/HP_SWEEP_INTEGRATION_PLAN.md`](docs/HP_SWEEP_INTEGRATION_PLAN.md) | Pre-registered decision rules for the in-flight HP sweep. |

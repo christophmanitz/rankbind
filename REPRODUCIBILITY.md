@@ -1,13 +1,45 @@
 # Reproducibility
 
-Every number, table, and figure in the paper (`paper/main.tex`, also
-`paper/paper.md`) maps to a command in this file. Each entry below
+Every number, table, and figure in the paper (`paper/scirep/main.tex`, the
+Scientific Reports manuscript; long-form appendix in `paper/archive/main.tex`
+and `paper/archive/paper.md`) maps to a command in this file. Each entry below
 lists the command to run from the project root, the input artefacts it
 expects to exist, and the output paths it writes, so a single pass
 through §3 regenerates the paper's evidence from a fresh clone. The
 companion file `docs/HP_SWEEP_INTEGRATION_PLAN.md` documents how a
 sweep result that arrives after this commit gets folded back into the
 paper.
+
+---
+
+## Artefacts on Zenodo
+
+Two provisional Zenodo records (created, not yet public; DOIs will be
+assigned on publication) hold everything that is not in the git repo:
+
+- **Record 1 — code, data and per-run artefacts** (`rankbind-paper-v1`):
+  repository snapshot tar (`rankbind-paper-snapshot.tar.gz`, incl.
+  `paper/scirep/` source and the `reactionDataFiltering` submodule),
+  the compiled Scientific Reports manuscript
+  (`rankbind-scirep-manuscript.pdf`), BRENDA-200 pairs+sequences
+  (`brenda200.tar.gz`), the BRENDA+SABIO raw snapshot
+  (`brenda_sabio_raw_2026-04-29.tar`) and interim tables
+  (`brenda_sabio_interim.tar.gz`), the re-downloaded external benchmarks
+  (`benchmarks_csvs.tar.gz`), the BRENDA/SABIO ESM2 embeddings
+  (`brenda200_esm2.tar`, `brenda_sabio_esm2.tar`), all Phase-1 checkpoints
+  (`phase1.tar`), all RankBind run manifests/checkpoints/score matrices
+  incl. the cold-split runs (`v5_rankbind.tar`), and the committed result
+  CSVs behind every paper table (`attractor_results_csvs.tar.gz`).
+- **Record 2 — benchmark ESM2 embeddings** (`rankbind-benchmark-embeddings-v1`):
+  regenerated per-residue ESM2 embeddings for Davis, KIBA, BindingDB_Kd
+  and ESP (`davis_esm2.tar`, `kiba_esm2.tar`, `bindingdb_kd_esm2.tar`,
+  `esp_esm2.tar`).
+
+Both records ship a `README.md` (layout + reproduction commands) and a
+`SHA256SUMS` file listing the SHA-256 of every archived file. Staging
+lives on the cluster at `/work2/zw93onug-rankbind_zenodo/zenodo_staging/`;
+uploads go to the pre-created (unsubmitted) deposits via
+`zenodo_upload3.sh`-style `curl` PUTs. Do not publish until submission.
 
 ---
 
