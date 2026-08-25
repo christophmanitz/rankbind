@@ -53,9 +53,8 @@ Read this as a chain; every later piece exists because of the earlier one.
    Davis/KIBA/BindingDB (a related but different task). Currently being
    prepared and run.
 
-Phases 3 and 5 in the old plan were renumbered; the **paper**
-(`paper/scirep/main.tex`) is the authoritative narrative now, not the old phase
-numbers.
+Phases 3 and 5 in the old plan were renumbered; the paper is the
+authoritative narrative now, not the old phase numbers.
 
 ---
 
@@ -102,7 +101,6 @@ the curated 200-protein slice in tier 1.
 | `evaluation/` | all diagnostic & eval scripts; `attractor_results/` = **main result files**; `suitability_results/` = dataset characterisation; `_archive/` = retired scripts | core |
 | `baselines/` | adapters for the 4 comparison models (`adapters/` + `drugban/gems/graphdta/moltrans/`) | keep the 4 |
 | `results/` | trained outputs: `original_*` = 4 baselines; `v5_rankbind/` = 55 RankBind runs (see §6) | core |
-| `paper/` | the manuscript, **`main.tex` is canonical**; `figures/` | core |
 | `scripts/` | SLURM submit + aggregation scripts | core |
 | `docs/` | plans & specs (dev plan, phase-1 status, HP-sweep plan, benchmark plan) | reference |
 | `external/` | upstream clones of the baseline repos (reference only, not run directly) | reference |
@@ -158,8 +156,7 @@ the paper-ready summary CSVs in `evaluation/attractor_results/`.
   RankBind + null-probe on the 4 benchmarks (v5b for ESP, v4 for the
   kinase sets), then write §8.3.
 
-For the live to-do detail see `CLAUDE.md` (handoff) and the memory
-files.
+For the live to-do detail see `v5_rankbind/PHASE2_LOG.md` (handoff).
 
 ---
 

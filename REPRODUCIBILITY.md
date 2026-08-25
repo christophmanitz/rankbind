@@ -1,14 +1,12 @@
 # Reproducibility
 
-Every number, table, and figure in the paper (`paper/scirep/main.tex`, the
-Scientific Reports manuscript; long-form appendix in `paper/archive/main.tex`
-and `paper/archive/paper.md`) maps to a command in this file. Each entry below
-lists the command to run from the project root, the input artefacts it
-expects to exist, and the output paths it writes, so a single pass
-through §3 regenerates the paper's evidence from a fresh clone. The
-companion file `docs/HP_SWEEP_INTEGRATION_PLAN.md` documents how a
-sweep result that arrives after this commit gets folded back into the
-paper.
+Every number, table, and figure in the paper maps to a command in this
+file. Each entry below lists the command to run from the project root,
+the input artefacts it expects to exist, and the output paths it writes,
+so a single pass through §3 regenerates the paper's evidence from a fresh
+clone. The companion file `docs/HP_SWEEP_INTEGRATION_PLAN.md` documents
+how a sweep result that arrives after this commit gets folded back into
+the paper.
 
 ---
 
@@ -19,9 +17,8 @@ assigned on publication) hold everything that is not in the git repo:
 
 - **Record 1 — code, data and per-run artefacts** (`rankbind-paper-v1`):
   repository snapshot tar (`rankbind-paper-snapshot.tar.gz`, incl.
-  `paper/scirep/` source and the `reactionDataFiltering` submodule),
-  the compiled Scientific Reports manuscript
-  (`rankbind-scirep-manuscript.pdf`), BRENDA-200 pairs+sequences
+  the `reactionDataFiltering` submodule),
+  BRENDA-200 pairs+sequences
   (`brenda200.tar.gz`), the BRENDA+SABIO raw snapshot
   (`brenda_sabio_raw_2026-04-29.tar`) and interim tables
   (`brenda_sabio_interim.tar.gz`), the re-downloaded external benchmarks

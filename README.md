@@ -1,14 +1,10 @@
 # RankBind
 
 Research repository for *RankBind: Protein-Invariant Contrastive Learning
-for Ligand-Conditional DTI* (working title).
+for Ligand-Conditional DTI*.
 
-The paper draft (`paper/scirep/main.tex`, Scientific Reports; `paper/jcim/`
-for the JCIM version) is the canonical description of the work; the long
-version lives in `paper/archive/`. This README is just a navigational index.
-Every numerical result in the paper is reproducible end-to-end from this
-repository at the current commit, see `REPRODUCIBILITY.md` for the
-exact commands.
+Every numerical result is reproducible end-to-end from this repository
+at the current commit; see `REPRODUCIBILITY.md` for the exact commands.
 
 ---
 
@@ -17,18 +13,12 @@ exact commands.
 The paper makes four contributions, located as follows in the source
 tree:
 
-| Contribution                                                       | Code lives in                              | Pinned artefacts under                                            | Paper section |
-|--------------------------------------------------------------------|--------------------------------------------|-------------------------------------------------------------------|---------------|
-| **(C1) Null-baseline diagnosis** of pooled-AUC shortcut on BRENDA  | `evaluation/null_baselines.py`, `evaluation/attractor_diagnosis.py`, `evaluation/cross_model_overlap.py`, `evaluation/test_set_eval.py` | `results/original_*/score_matrix_*.npy` + `evaluation/attractor_results/{test_summary_all,gini_comparison,cross_model_overlap}.csv` | §3 |
-| **(C2) RankBind architecture** (sampler + margin + bilinear + hard-negs) | `v5_rankbind/{data,sampler,model,loss,metrics,train,eval}.py` + `v5_rankbind/configs/` | `results/v5_rankbind/*_v4_s{42,7,1337}/` (3 seeds × 5 ablations)  | §4-§6 |
-| **(C3) Residue-level extension** (attention pool over per-residue ESM2) | `v5_rankbind/configs/abl_attn_pool.json` (model already in `v5_rankbind/model.py`); audit in `evaluation/attn_weight_inspection.py` | `results/v5_rankbind/*_v5b_s*/` + `paper/figures/fig_attn_*.png`  | §7 |
-| **(C4) Transferability probe + practitioner recipe** on enzyme-wide BRENDA+SABIO | `evaluation/null_prior_probe_brenda_sabio.py`, `v4_residue_only/{train_brenda_sabio.py,dataset_split.py,run_brenda_sabio.sh}` | `evaluation/attractor_results/null_prior_probe_brenda_sabio.{csv,txt}` + the three `*_with_decoys_bs_v1` v5 run dirs | §8.1 + §8.2 |
-
-The Stage-1 hyperparameter sweep submitted alongside this commit
-(`scripts/run_v5_brenda_sabio_hp_sweep.sh`, twelve configs under
-`v5_rankbind/configs/sweeps/hp_brenda_sabio/`) is not in the paper's
-headline results; how its outcomes are folded back into the paper is
-documented in `docs/HP_SWEEP_INTEGRATION_PLAN.md`.
+| Contribution                                                       | Code lives in                              | Pinned artefacts under                                            |
+|--------------------------------------------------------------------|--------------------------------------------|-------------------------------------------------------------------|
+| **(C1) Null-baseline diagnosis** of pooled-AUC shortcut on BRENDA  | `evaluation/null_baselines.py`, `evaluation/attractor_diagnosis.py`, `evaluation/cross_model_overlap.py`, `evaluation/test_set_eval.py` | `results/original_*/score_matrix_*.npy` + `evaluation/attractor_results/{test_summary_all,gini_comparison,cross_model_overlap}.csv` |
+| **(C2) RankBind architecture** (sampler + margin + bilinear + hard-negs) | `v5_rankbind/{data,sampler,model,loss,metrics,train,eval}.py` + `v5_rankbind/configs/` | `results/v5_rankbind/*_v4_s{42,7,1337}/` (3 seeds × 5 ablations)  |
+| **(C3) Residue-level extension** (attention pool over per-residue ESM2) | `v5_rankbind/configs/abl_attn_pool.json` (model already in `v5_rankbind/model.py`); audit in `evaluation/attn_weight_inspection.py` | `results/v5_rankbind/*_v5b_s*/`  |
+| **(C4) Transferability probe + practitioner recipe** on enzyme-wide BRENDA+SABIO | `evaluation/null_prior_probe_brenda_sabio.py`, `v4_residue_only/{train_brenda_sabio.py,dataset_split.py,run_brenda_sabio.sh}` | `evaluation/attractor_results/null_prior_probe_brenda_sabio.{csv,txt}` + the three `*_with_decoys_bs_v1` v5 run dirs |
 
 ---
 
@@ -41,7 +31,7 @@ v5_rankbind/        Phase-2 ranking model — the paper's headline
                     helpers.
 baselines/          Phase-1 adapters + unified trainer (GraphDTA,
                     MolTrans, DrugBAN, GEMS). Used to produce the four
-                    score matrices §3.3 cites.
+                    score matrices the paper cites.
 evaluation/         Diagnostic stack — null baselines (BRENDA-200 + a
                     BRENDA+SABIO-aware variant), attractor diagnosis,
                     cross-model overlap, test-set eval, attention-weight
@@ -54,10 +44,6 @@ scripts/            SLURM submission scripts and aggregators
                     (run_v5_rankbind.sh, run_v5_multiseed.sh,
                     run_v5_ablations.sh, run_v5_brenda_sabio_hp_sweep.sh,
                     aggregate_multiseed.py, collect_v5_runs.py).
-paper/              LaTeX + Markdown draft, figures, references.bib,
-                    Makefile. `poster_scads/` holds the ScaDS.AI poster
-                    (sources + `build.sh`), `poster_figure_data/` the
-                    exported CSV evidence behind its figures.
 docs/               Historical plans + the HP-sweep integration plan.
 
 reactionDataFiltering/   git submodule — the dataset pipeline
@@ -66,9 +52,6 @@ reactionDataFiltering/   git submodule — the dataset pipeline
                          embeddings -> graphs). Has its own GitHub
                          remote and CI; see its README.
 
-CLAUDE.md           Live session-by-session status + do/don't list.
-                    Read first if you are continuing a paused session.
-README.md           This file. Paper-result-to-code index.
 REPRODUCIBILITY.md  Exact commands per paper finding.
 
 data/, results/, logs/, external/, *.tar.gz, *.pt, *.npy
@@ -166,16 +149,12 @@ against an old submodule and may see weird import or path errors.
 
 ---
 
-## 5. Documentation surface
+## 5. Documentation
 
 | File | What it is |
 |------|------------|
-| [`paper/scirep/main.tex`](paper/scirep/main.tex) | The Scientific Reports manuscript (main). |
-| [`paper/jcim/main.tex`](paper/jcim/main.tex) | The JCIM-formatted version. |
-| [`paper/archive/main.tex`](paper/archive/main.tex), [`paper/archive/paper.md`](paper/archive/paper.md) | Long-form evidence appendix (historical). |
 | [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md) | Per-result regeneration commands. |
-| [`CLAUDE.md`](CLAUDE.md) | Live status + do/don't list. Read first if continuing a paused session. |
-| [`docs/HP_SWEEP_INTEGRATION_PLAN.md`](docs/HP_SWEEP_INTEGRATION_PLAN.md) | Pre-registered decision rules for the in-flight HP sweep. |
+| [`docs/HP_SWEEP_INTEGRATION_PLAN.md`](docs/HP_SWEEP_INTEGRATION_PLAN.md) | Pre-registered decision rules for the HP sweep. |
 | [`docs/development_plan.md`](docs/development_plan.md) | Pre-Phase-1 plan. Historical, do not edit. |
 | [`docs/phase1_status.md`](docs/phase1_status.md) | Phase-1 outcome snapshot. |
 | [`v5_rankbind/PHASE2_LOG.md`](v5_rankbind/PHASE2_LOG.md) | Phase-2 session log (live; appendable). |
